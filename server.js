@@ -4,6 +4,7 @@ const WebSocket = require('ws');
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const os = require('os');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -11,12 +12,13 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
 
-// Lưu directory cho mỗi client
+// Lưu directory và session cho mỗi client
 const clientDirs = new Map();
+const clientSessions = new Map(); // Lưu trạng thái input mode
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Health check với đầy đủ thông tin
+// Health check
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -43,7 +45,7 @@ app.post('/api/exec', express.json(), (req, res) => {
     }
 });
 
-// API lấy system stats realtime
+// API lấy system stats
 app.get('/api/stats', (req, res) => {
     try {
         // CPU Usage
@@ -63,46 +65,10 @@ app.get('/api/stats', (req, res) => {
         const usedMem = totalMem - freeMem;
         const memUsage = ((usedMem / totalMem) * 100).toFixed(1);
 
-        // Disk Usage
-        let diskUsage = '0';
-        let diskUsed = '0 GB';
-        let diskTotal = '0 GB';
-        try {
-            const df = execSync('df -h / | tail -1').toString();
-            const parts = df.split(/\s+/);
-            diskUsage = parts[4]?.replace('%', '') || '0';
-            diskUsed = parts[2] || '0 GB';
-            diskTotal = parts[1] || '0 GB';
-        } catch (e) {}
-
-        // Uptime
-        const uptime = os.uptime();
-        const hours = Math.floor(uptime / 3600);
-        const minutes = Math.floor((uptime % 3600) / 60);
-        const uptimeStr = `${hours}h ${minutes}m`;
-
-        // Package count
-        let packages = '0';
-        try {
-            packages = execSync('pacman -Q 2>/dev/null | wc -l').toString().trim();
-        } catch (e) {}
-
         res.json({
             cpu: cpuUsage,
-            cpuModel: cpus[0]?.model || 'Unknown',
-            cpuCores: cpus.length,
             ram: memUsage,
-            ramUsed: (usedMem / 1024 / 1024 / 1024).toFixed(1) + ' GB',
-            ramTotal: (totalMem / 1024 / 1024 / 1024).toFixed(1) + ' GB',
-            disk: diskUsage,
-            diskUsed: diskUsed,
-            diskTotal: diskTotal,
-            uptime: uptimeStr,
-            uptimeSeconds: uptime,
-            packages: packages,
-            hostname: os.hostname(),
-            kernel: os.release(),
-            loadavg: os.loadavg()[0].toFixed(2)
+            uptime: os.uptime()
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -113,8 +79,13 @@ app.get('/api/stats', (req, res) => {
 wss.on('connection', (ws) => {
     console.log('Client connected');
     
-    // Set initial directory
+    // Set initial directory và session
     clientDirs.set(ws, '/root');
+    clientSessions.set(ws, {
+        inputMode: false,
+        currentFile: null,
+        fileContent: []
+    });
     
     ws.send(JSON.stringify({ 
         type: 'output', 
@@ -122,12 +93,14 @@ wss.on('connection', (ws) => {
               '  Arch Linux Full Terminal\n' +
               '==========================================\n' +
               '  ✓ System monitoring active\n' +
-              '  ✓ CPU, RAM, Disk stats available\n' +
+              '  ✓ CPU, RAM stats available\n' +
+              '  ✓ Tạo file: cat > filename.js\n' +
+              '  ✓ Kết thúc: Ctrl+D\n' +
               '==========================================\n'
     }));
     ws.send(JSON.stringify({ type: 'output', data: '# ' }));
 
-    // Gửi stats qua WebSocket mỗi 2 giây
+    // Gửi stats mỗi 2 giây
     const statsInterval = setInterval(() => {
         try {
             const cpus = os.cpus();
@@ -142,8 +115,7 @@ wss.on('connection', (ws) => {
 
             const totalMem = os.totalmem();
             const freeMem = os.freemem();
-            const usedMem = totalMem - freeMem;
-            const memUsage = ((usedMem / totalMem) * 100).toFixed(1);
+            const memUsage = ((totalMem - freeMem) / totalMem * 100).toFixed(1);
 
             ws.send(JSON.stringify({ 
                 type: 'stats',
@@ -157,8 +129,19 @@ wss.on('connection', (ws) => {
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
+            const session = clientSessions.get(ws);
+            
             if (data.type === 'command') {
-                executeCommand(data.command, ws);
+                // Kiểm tra nếu đang trong input mode
+                if (session.inputMode) {
+                    // Xử lý input mode (cat > file)
+                    handleInputMode(data.command, ws, session);
+                } else {
+                    executeCommand(data.command, ws);
+                }
+            } else if (data.type === 'input') {
+                // Xử lý input từ web terminal
+                handleInputMode(data.data, ws, session);
             }
         } catch (err) {
             ws.send(JSON.stringify({ type: 'error', data: err.message }));
@@ -168,13 +151,47 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         clearInterval(statsInterval);
         clientDirs.delete(ws);
+        clientSessions.delete(ws);
     });
 });
+
+// Xử lý input mode (cat > file)
+function handleInputMode(input, ws, session) {
+    const currentDir = clientDirs.get(ws) || '/root';
+    
+    // Ctrl+D để kết thúc
+    if (input === '\x04') { // Ctrl+D
+        const filePath = path.join(currentDir, session.currentFile);
+        try {
+            fs.writeFileSync(filePath, session.fileContent.join('\n'));
+            ws.send(JSON.stringify({ 
+                type: 'output', 
+                data: `\n✅ File ${session.currentFile} created successfully!\n`
+            }));
+        } catch (err) {
+            ws.send(JSON.stringify({ 
+                type: 'output', 
+                data: `\n❌ Error: ${err.message}\n`
+            }));
+        }
+        
+        session.inputMode = false;
+        session.currentFile = null;
+        session.fileContent = [];
+        ws.send(JSON.stringify({ type: 'output', data: '# ' }));
+        return;
+    }
+    
+    // Thêm dòng vào file content
+    session.fileContent.push(input);
+    ws.send(JSON.stringify({ type: 'output', data: '' })); // Echo nhẹ
+}
 
 function executeCommand(command, ws) {
     console.log(`Executing: ${command}`);
     
     const currentDir = clientDirs.get(ws) || '/root';
+    const session = clientSessions.get(ws);
     
     // Xử lý lệnh cd
     if (command.startsWith('cd ')) {
@@ -189,7 +206,6 @@ function executeCommand(command, ws) {
             newDir = path.join(currentDir, targetDir);
         }
         
-        // Kiểm tra directory
         try {
             execSync(`test -d "${newDir}"`);
             clientDirs.set(ws, newDir);
@@ -198,6 +214,19 @@ function executeCommand(command, ws) {
             ws.send(JSON.stringify({ type: 'output', data: `cd: ${targetDir}: No such directory\n` }));
         }
         ws.send(JSON.stringify({ type: 'output', data: '# ' }));
+        return;
+    }
+    
+    // Xử lý cat > file (bật input mode)
+    if (command.startsWith('cat > ')) {
+        const filename = command.substring(6).trim();
+        session.inputMode = true;
+        session.currentFile = filename;
+        session.fileContent = [];
+        ws.send(JSON.stringify({ 
+            type: 'output', 
+            data: `📝 Đang tạo file ${filename}. Nhập nội dung và nhấn Ctrl+D để kết thúc:\n`
+        }));
         return;
     }
     
