@@ -1,4 +1,3 @@
-// Khai báo tất cả imports ở đầu file
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -6,29 +5,26 @@ const { spawn, execSync } = require('child_process');
 const path = require('path');
 const os = require('os');
 
-// Khởi tạo app sau khi đã import xong
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Lấy PORT sau khi đã khởi tạo xong
 const PORT = process.env.PORT || 3000;
 
-// Kiểm tra process đã sẵn sàng
-if (!process || !process.env) {
-    throw new Error('Process not initialized properly');
-}
+// Lưu directory cho mỗi client
+const clientDirs = new Map();
 
-// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Health check
+// Health check với đầy đủ thông tin
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         time: new Date().toISOString(),
         hostname: os.hostname(),
-        uptime: os.uptime()
+        uptime: os.uptime(),
+        cpu: os.cpus().length,
+        memory: os.totalmem()
     });
 });
 
@@ -47,17 +43,116 @@ app.post('/api/exec', express.json(), (req, res) => {
     }
 });
 
+// API lấy system stats realtime
+app.get('/api/stats', (req, res) => {
+    try {
+        // CPU Usage
+        const cpus = os.cpus();
+        let totalIdle = 0, totalTick = 0;
+        cpus.forEach(cpu => {
+            for (let type in cpu.times) {
+                totalTick += cpu.times[type];
+            }
+            totalIdle += cpu.times.idle;
+        });
+        const cpuUsage = ((1 - totalIdle / totalTick) * 100).toFixed(1);
+
+        // Memory Usage
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const usedMem = totalMem - freeMem;
+        const memUsage = ((usedMem / totalMem) * 100).toFixed(1);
+
+        // Disk Usage
+        let diskUsage = '0';
+        let diskUsed = '0 GB';
+        let diskTotal = '0 GB';
+        try {
+            const df = execSync('df -h / | tail -1').toString();
+            const parts = df.split(/\s+/);
+            diskUsage = parts[4]?.replace('%', '') || '0';
+            diskUsed = parts[2] || '0 GB';
+            diskTotal = parts[1] || '0 GB';
+        } catch (e) {}
+
+        // Uptime
+        const uptime = os.uptime();
+        const hours = Math.floor(uptime / 3600);
+        const minutes = Math.floor((uptime % 3600) / 60);
+        const uptimeStr = `${hours}h ${minutes}m`;
+
+        // Package count
+        let packages = '0';
+        try {
+            packages = execSync('pacman -Q 2>/dev/null | wc -l').toString().trim();
+        } catch (e) {}
+
+        res.json({
+            cpu: cpuUsage,
+            cpuModel: cpus[0]?.model || 'Unknown',
+            cpuCores: cpus.length,
+            ram: memUsage,
+            ramUsed: (usedMem / 1024 / 1024 / 1024).toFixed(1) + ' GB',
+            ramTotal: (totalMem / 1024 / 1024 / 1024).toFixed(1) + ' GB',
+            disk: diskUsage,
+            diskUsed: diskUsed,
+            diskTotal: diskTotal,
+            uptime: uptimeStr,
+            uptimeSeconds: uptime,
+            packages: packages,
+            hostname: os.hostname(),
+            kernel: os.release(),
+            loadavg: os.loadavg()[0].toFixed(2)
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // WebSocket cho terminal
 wss.on('connection', (ws) => {
     console.log('Client connected');
     
+    // Set initial directory
+    clientDirs.set(ws, '/root');
+    
     ws.send(JSON.stringify({ 
         type: 'output', 
         data: '==========================================\n' +
-              '  Arch Linux Terminal\n' +
+              '  Arch Linux Full Terminal\n' +
+              '==========================================\n' +
+              '  ✓ System monitoring active\n' +
+              '  ✓ CPU, RAM, Disk stats available\n' +
               '==========================================\n'
     }));
     ws.send(JSON.stringify({ type: 'output', data: '# ' }));
+
+    // Gửi stats qua WebSocket mỗi 2 giây
+    const statsInterval = setInterval(() => {
+        try {
+            const cpus = os.cpus();
+            let totalIdle = 0, totalTick = 0;
+            cpus.forEach(cpu => {
+                for (let type in cpu.times) {
+                    totalTick += cpu.times[type];
+                }
+                totalIdle += cpu.times.idle;
+            });
+            const cpuUsage = ((1 - totalIdle / totalTick) * 100).toFixed(1);
+
+            const totalMem = os.totalmem();
+            const freeMem = os.freemem();
+            const usedMem = totalMem - freeMem;
+            const memUsage = ((usedMem / totalMem) * 100).toFixed(1);
+
+            ws.send(JSON.stringify({ 
+                type: 'stats',
+                cpu: cpuUsage,
+                ram: memUsage,
+                uptime: os.uptime()
+            }));
+        } catch (e) {}
+    }, 2000);
 
     ws.on('message', (message) => {
         try {
@@ -69,10 +164,42 @@ wss.on('connection', (ws) => {
             ws.send(JSON.stringify({ type: 'error', data: err.message }));
         }
     });
+
+    ws.on('close', () => {
+        clearInterval(statsInterval);
+        clientDirs.delete(ws);
+    });
 });
 
 function executeCommand(command, ws) {
     console.log(`Executing: ${command}`);
+    
+    const currentDir = clientDirs.get(ws) || '/root';
+    
+    // Xử lý lệnh cd
+    if (command.startsWith('cd ')) {
+        const targetDir = command.substring(3).trim();
+        let newDir;
+        
+        if (targetDir === '..') {
+            newDir = path.dirname(currentDir);
+        } else if (targetDir.startsWith('/')) {
+            newDir = targetDir;
+        } else {
+            newDir = path.join(currentDir, targetDir);
+        }
+        
+        // Kiểm tra directory
+        try {
+            execSync(`test -d "${newDir}"`);
+            clientDirs.set(ws, newDir);
+            ws.send(JSON.stringify({ type: 'output', data: '' }));
+        } catch (e) {
+            ws.send(JSON.stringify({ type: 'output', data: `cd: ${targetDir}: No such directory\n` }));
+        }
+        ws.send(JSON.stringify({ type: 'output', data: '# ' }));
+        return;
+    }
     
     // Auto --noconfirm cho pacman
     let finalCommand = command;
@@ -81,6 +208,7 @@ function executeCommand(command, ws) {
     }
     
     const proc = spawn('/bin/bash', ['-c', finalCommand], {
+        cwd: currentDir,
         env: { ...process.env, TERM: 'xterm' }
     });
 
@@ -97,13 +225,12 @@ function executeCommand(command, ws) {
     });
 }
 
-// Start server - đảm bảo mọi thứ đã sẵn sàng
 server.listen(PORT, '0.0.0.0', () => {
     console.log('==========================================');
-    console.log('Server started successfully');
+    console.log('Arch Linux Terminal');
     console.log('==========================================');
     console.log(`Port: ${PORT}`);
-    console.log(`Node: ${process.version}`);
-    console.log(`PID: ${process.pid}`);
+    console.log(`CPU: ${os.cpus().length} cores`);
+    console.log(`RAM: ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(1)} GB`);
     console.log('==========================================');
 });
