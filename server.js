@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 
 // Lưu directory và processes cho mỗi client
 const clientDirs = new Map();
-const clientProcesses = new Map(); // Lưu các process đang chạy
+const clientProcesses = new Map(); // Lưu process đang chạy
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -24,13 +24,31 @@ app.get('/health', (req, res) => {
         status: 'ok',
         time: new Date().toISOString(),
         hostname: os.hostname(),
-        uptime: os.uptime()
+        uptime: os.uptime(),
+        cpu: os.cpus().length,
+        memory: os.totalmem()
     });
 });
 
-// API stats
+// API endpoint cho system info
+app.post('/api/exec', express.json(), (req, res) => {
+    const { command } = req.body;
+    try {
+        const output = execSync(command, { 
+            encoding: 'utf8',
+            timeout: 5000,
+            shell: '/bin/bash'
+        });
+        res.json({ output });
+    } catch (error) {
+        res.json({ output: error.message });
+    }
+});
+
+// API lấy system stats realtime
 app.get('/api/stats', (req, res) => {
     try {
+        // CPU Usage
         const cpus = os.cpus();
         let totalIdle = 0, totalTick = 0;
         cpus.forEach(cpu => {
@@ -41,14 +59,52 @@ app.get('/api/stats', (req, res) => {
         });
         const cpuUsage = ((1 - totalIdle / totalTick) * 100).toFixed(1);
 
+        // Memory Usage
         const totalMem = os.totalmem();
         const freeMem = os.freemem();
-        const memUsage = ((totalMem - freeMem) / totalMem * 100).toFixed(1);
+        const usedMem = totalMem - freeMem;
+        const memUsage = ((usedMem / totalMem) * 100).toFixed(1);
+
+        // Disk Usage
+        let diskUsage = '0';
+        let diskUsed = '0 GB';
+        let diskTotal = '0 GB';
+        try {
+            const df = execSync('df -h / | tail -1').toString();
+            const parts = df.split(/\s+/);
+            diskUsage = parts[4]?.replace('%', '') || '0';
+            diskUsed = parts[2] || '0 GB';
+            diskTotal = parts[1] || '0 GB';
+        } catch (e) {}
+
+        // Uptime
+        const uptime = os.uptime();
+        const hours = Math.floor(uptime / 3600);
+        const minutes = Math.floor((uptime % 3600) / 60);
+        const uptimeStr = `${hours}h ${minutes}m`;
+
+        // Package count
+        let packages = '0';
+        try {
+            packages = execSync('pacman -Q 2>/dev/null | wc -l').toString().trim();
+        } catch (e) {}
 
         res.json({
             cpu: cpuUsage,
+            cpuModel: cpus[0]?.model || 'Unknown',
+            cpuCores: cpus.length,
             ram: memUsage,
-            uptime: os.uptime()
+            ramUsed: (usedMem / 1024 / 1024 / 1024).toFixed(1) + ' GB',
+            ramTotal: (totalMem / 1024 / 1024 / 1024).toFixed(1) + ' GB',
+            disk: diskUsage,
+            diskUsed: diskUsed,
+            diskTotal: diskTotal,
+            uptime: uptimeStr,
+            uptimeSeconds: uptime,
+            packages: packages,
+            hostname: os.hostname(),
+            kernel: os.release(),
+            loadavg: os.loadavg()[0].toFixed(2)
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -59,18 +115,19 @@ app.get('/api/stats', (req, res) => {
 wss.on('connection', (ws) => {
     console.log('Client connected');
     
+    // Set initial directory
     clientDirs.set(ws, '/root');
     
     ws.send(JSON.stringify({ 
         type: 'output', 
         data: '\n=== Arch Linux Terminal ===\n' +
-              '✓ Hỗ trợ chương trình interactive (node, python, v.v.)\n' +
-              '✓ Gõ input trực tiếp vào terminal\n' +
-              '✓ Ctrl+C để dừng chương trình\n\n'
+              '✓ Hỗ trợ chương trình interactive (node, python)\n' +
+              '✓ Gõ input trực tiếp vào ô command\n' +
+              '✓ Dùng nút "Ctrl+C" để dừng chương trình\n\n'
     }));
     ws.send(JSON.stringify({ type: 'output', data: '# ' }));
 
-    // Stats interval
+    // Gửi stats qua WebSocket mỗi 2 giây
     const statsInterval = setInterval(() => {
         try {
             const cpus = os.cpus();
@@ -110,20 +167,6 @@ wss.on('connection', (ws) => {
                     // Không có process, chạy command mới
                     executeCommand(data.command, ws);
                 }
-            } 
-            else if (data.type === 'stdin') {
-                // Xử lý input trực tiếp (cho các chương trình interactive)
-                const currentProc = clientProcesses.get(ws);
-                if (currentProc && !currentProc.killed) {
-                    currentProc.stdin.write(data.data);
-                }
-            }
-            else if (data.type === 'sigint') {
-                // Gửi Ctrl+C
-                const currentProc = clientProcesses.get(ws);
-                if (currentProc && !currentProc.killed) {
-                    currentProc.kill('SIGINT');
-                }
             }
         } catch (err) {
             ws.send(JSON.stringify({ type: 'error', data: err.message }));
@@ -131,7 +174,7 @@ wss.on('connection', (ws) => {
     });
 
     ws.on('close', () => {
-        // Kill tất cả processes khi client disconnect
+        // Kill process khi client disconnect
         const proc = clientProcesses.get(ws);
         if (proc) {
             proc.kill();
@@ -166,6 +209,7 @@ function executeCommand(command, ws) {
             newDir = path.join(currentDir, targetDir);
         }
         
+        // Kiểm tra directory
         try {
             execSync(`test -d "${newDir}"`);
             clientDirs.set(ws, newDir);
@@ -183,13 +227,12 @@ function executeCommand(command, ws) {
         finalCommand = command + ' --noconfirm';
     }
     
-    // Spawn process với pty để hỗ trợ interactive
+    // Spawn process với pipe cho stdin (hỗ trợ interactive)
     const proc = spawn('/bin/bash', ['-c', finalCommand], {
         cwd: currentDir,
         env: { 
             ...process.env, 
-            TERM: 'xterm-256color',
-            NODE_NO_READLINE: '1' // Tắt readline của node
+            TERM: 'xterm-256color'
         },
         stdio: ['pipe', 'pipe', 'pipe'] // Cho phép stdin
     });
@@ -223,5 +266,11 @@ function executeCommand(command, ws) {
 }
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Server running on port ${PORT}`);
+    console.log('==========================================');
+    console.log('Arch Linux Terminal');
+    console.log('==========================================');
+    console.log(`Port: ${PORT}`);
+    console.log(`CPU: ${os.cpus().length} cores`);
+    console.log(`RAM: ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(1)} GB`);
+    console.log('==========================================');
 });
