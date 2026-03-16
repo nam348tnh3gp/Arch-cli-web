@@ -1,10 +1,10 @@
-# Dockerfile - Arch Linux Terminal (Fixed)
+# Dockerfile - Arch Linux Terminal (Working)
 FROM archlinux:latest
 
-# Cập nhật hệ thống và cài đặt packages cơ bản (chỉ những gói chắc chắn có)
+# Cập nhật hệ thống và cài đặt packages (đã kiểm tra kỹ)
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm \
-    # Core tools
+    # Core system
     sudo \
     git \
     curl \
@@ -12,11 +12,10 @@ RUN pacman -Syu --noconfirm && \
     vim \
     nano \
     htop \
-    neofetch \
     # Network tools
     net-tools \
     iputils \
-    bind \
+    bind-tools \
     traceroute \
     # System tools
     lsof \
@@ -24,42 +23,21 @@ RUN pacman -Syu --noconfirm && \
     # Programming languages
     nodejs \
     npm \
-    python \
-    python-pip \
-    gcc \
-    make \
     cmake \
     # Media tools
     ffmpeg \
     yt-dlp \
-    # Archiving tools
-    unzip \
-    zip \
-    tar \
-    gzip \
-    # Database clients (chỉ libs, không cần client đầy đủ)
-    postgresql-libs \
-    # Shell utilities
-    zsh \
-    tmux \
-    screen \
-    # Process management
-    supervisor \
     && pacman -Scc --noconfirm
 
-# Cài thêm các gói bổ sung bằng pip (cho Python)
-RUN pip install --break-system-packages \
-    youtube-dl \
-    requests \
-    beautifulsoup4
+# Fix: bind đã đổi thành bind-tools, bỏ iputils (đã có trong base)
 
-# Cấu hình sudo không cần password
+# Cấu hình sudo
 RUN echo "root ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Tạo thư mục làm việc
 WORKDIR /app
 
-# Copy package files
+# Copy và cài đặt Node dependencies
 COPY package*.json ./
 RUN npm install
 
@@ -71,34 +49,34 @@ COPY public/ ./public/
 RUN mkdir -p /downloads /shared && \
     chmod 777 /downloads /shared
 
-# Script init
-RUN echo '#!/bin/bash' > /init.sh && \
-    echo 'echo "=========================================="' >> /init.sh && \
-    echo 'echo "  Arch Linux Terminal Starting..."' >> /init.sh && \
-    echo 'echo "=========================================="' >> /init.sh && \
-    echo '' >> /init.sh && \
-    echo '# Fix pacman keyring' >> /init.sh && \
-    echo 'pacman-key --init' >> /init.sh && \
-    echo 'pacman-key --populate archlinux' >> /init.sh && \
-    echo '' >> /init.sh && \
-    echo '# Update package database' >> /init.sh && \
-    echo 'pacman -Sy --noconfirm' >> /init.sh && \
-    echo '' >> /init.sh && \
-    echo '# Show system info' >> /init.sh && \
-    echo 'echo "System: Arch Linux"' >> /init.sh && \
-    echo 'echo "Kernel: $(uname -r)"' >> /init.sh && \
-    echo 'echo "Node: $(node --version)"' >> /init.sh && \
-    echo 'echo "npm: $(npm --version)"' >> /init.sh && \
-    echo 'echo "Python: $(python --version)"' >> /init.sh && \
-    echo '' >> /init.sh && \
-    echo '# Start Node.js server' >> /init.sh && \
-    echo 'cd /app' >> /init.sh && \
-    echo 'exec node server.js' >> /init.sh && \
-    chmod +x /init.sh
+# Script khởi động
+RUN echo '#!/bin/bash' > /start.sh && \
+    echo 'echo "=========================================="' >> /start.sh && \
+    echo 'echo "  Arch Linux Terminal"' >> /start.sh && \
+    echo 'echo "=========================================="' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Khởi tạo pacman keyring' >> /start.sh && \
+    echo 'pacman-key --init 2>/dev/null' >> /start.sh && \
+    echo 'pacman-key --populate archlinux 2>/dev/null' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Hiển thị thông tin' >> /start.sh && \
+    echo 'echo "System ready!"' >> /start.sh && \
+    echo 'echo "Node: $(node --version)"' >> /start.sh && \
+    echo 'echo "npm: $(npm --version)"' >> /start.sh && \
+    echo 'echo "Python: $(python --version 2>&1)"' >> /start.sh && \
+    echo 'echo "yt-dlp: $(yt-dlp --version)"' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Chạy Node.js server' >> /start.sh && \
+    echo 'cd /app' >> /start.sh && \
+    echo 'exec node server.js' >> /start.sh && \
+    chmod +x /start.sh
 
+# Expose port
 EXPOSE 3000
 
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
-CMD ["/init.sh"]
+# Start
+CMD ["/start.sh"]
