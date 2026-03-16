@@ -1,40 +1,42 @@
-# Dockerfile - Fixed version
+# Dockerfile - Arch Terminal Controller for Render
 FROM archlinux:latest
 
-# Cập nhật hệ thống và cài đặt packages cơ bản
+# Cập nhật hệ thống
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm \
     nodejs \
     npm \
-    nginx \
-    openssh \
     curl \
     wget \
     python \
     ffmpeg \
     git \
-    sudo \
-    base-devel \
+    neofetch \
     && pacman -Scc --noconfirm
 
-# Tạo user để build AUR packages
-RUN useradd -m builder && \
-    echo "builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+# Tạo thư mục app
+WORKDIR /app
 
-# Cài đặt yay (AUR helper)
-RUN su - builder -c "git clone https://aur.archlinux.org/yay.git && \
-    cd yay && makepkg -si --noconfirm"
+# Copy package.json và cài dependencies
+COPY package.json ./
+RUN npm install
 
-# Cài fastfetch từ AUR
-RUN su - builder -c "yay -S --noconfirm fastfetch"
+# Copy source code
+COPY server.js ./
+COPY public/ ./public/
 
-# Hoặc cài neofetch (vẫn còn trong AUR)
-RUN su - builder -c "yay -S --noconfirm neofetch"
-
-# Cài yt-dlp từ GitHub (bản mới nhất)
+# Cài yt-dlp
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
     chmod a+rx /usr/local/bin/yt-dlp
 
-# Tạo alias
-RUN echo 'alias neofetch="fastfetch"' >> /root/.bashrc && \
-    echo 'alias pacman="pacman --noconfirm"' >> /root/.bashrc
+# Tạo thư mục downloads
+RUN mkdir -p /downloads && chmod 777 /downloads
+
+# Kiểm tra file index.html tồn tại
+RUN test -f /app/public/index.html || (echo "ERROR: index.html not found!" && exit 1)
+
+# Expose port (Render sẽ tự động map)
+EXPOSE 3000
+
+# Start script
+CMD ["node", "server.js"]
