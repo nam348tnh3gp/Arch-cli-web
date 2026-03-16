@@ -1,7 +1,7 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const { spawn, exec } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -12,134 +12,89 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
 
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Health check
 app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'ok', 
+    res.json({
+        status: 'ok',
         time: new Date().toISOString(),
-        user: process.env.USER || 'root'
+        hostname: os.hostname(),
+        uptime: os.uptime()
     });
 });
 
-// API stats
-app.get('/api/stats', (req, res) => {
+// API endpoint để chạy lệnh (cho các lệnh đặc biệt)
+app.post('/api/exec', express.json(), (req, res) => {
+    const { command } = req.body;
     try {
-        const stats = {
-            cpu: getCPUUsage(),
-            cpuModel: os.cpus()[0]?.model || 'Unknown',
-            cpuCores: os.cpus().length,
-            ram: ((os.totalmem() - os.freemem()) / os.totalmem() * 100).toFixed(1),
-            ramUsed: formatBytes(os.totalmem() - os.freemem()),
-            ramTotal: formatBytes(os.totalmem()),
-            disk: getDiskUsage(),
-            diskUsed: getDiskUsed(),
-            diskTotal: getDiskTotal(),
-            ip: getLocalIP(),
-            uptime: formatUptime(os.uptime()),
-            processes: getProcessCount(),
-            loadavg: os.loadavg()[0].toFixed(2)
-        };
-        res.json(stats);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Helper functions (giữ nguyên như cũ)
-function getCPUUsage() {
-    try {
-        const cpus = os.cpus();
-        let idle = 0, total = 0;
-        cpus.forEach(cpu => {
-            for (let type in cpu.times) {
-                total += cpu.times[type];
-            }
-            idle += cpu.times.idle;
+        const output = execSync(command, { 
+            encoding: 'utf8',
+            timeout: 10000,
+            shell: '/bin/bash'
         });
-        return ((1 - idle / total) * 100).toFixed(1);
-    } catch { return '0'; }
-}
+        res.json({ output });
+    } catch (error) {
+        res.json({ output: error.message });
+    }
+});
 
-function getDiskUsage() {
-    try {
-        const output = execSync('df -h / | tail -1').toString();
-        return output.split(/\s+/)[4]?.replace('%', '') || '0';
-    } catch { return '0'; }
-}
+// WebSocket cho terminal real-time
+wss.on('connection', (ws) => {
+    console.log('Client connected');
+    
+    // Welcome message
+    ws.send(JSON.stringify({ 
+        type: 'output', 
+        data: '\x1b[32m' + // Green color
+            '==========================================\n' +
+            '  Arch Linux Full Terminal\n' +
+            '==========================================\n' +
+            '  ✓ All system commands available\n' +
+            '  ✓ pacman works (auto --noconfirm)\n' +
+            '  ✓ yt-dlp ready\n' +
+            '  ✓ Full development tools\n' +
+            '==========================================\n' +
+            '\x1b[0m' // Reset color
+    }));
+    ws.send(JSON.stringify({ type: 'output', data: '# ' }));
 
-function getDiskUsed() {
-    try {
-        const output = execSync('df -h / | tail -1').toString();
-        return output.split(/\s+/)[2] || '0 GB';
-    } catch { return '0 GB'; }
-}
-
-function getDiskTotal() {
-    try {
-        const output = execSync('df -h / | tail -1').toString();
-        return output.split(/\s+/)[1] || '0 GB';
-    } catch { return '0 GB'; }
-}
-
-function getLocalIP() {
-    const interfaces = os.networkInterfaces();
-    for (const name in interfaces) {
-        for (const iface of interfaces[name]) {
-            if (iface.family === 'IPv4' && !iface.internal) {
-                return iface.address;
+    // Xử lý lệnh
+    ws.on('message', (message) => {
+        try {
+            const data = JSON.parse(message);
+            if (data.type === 'command') {
+                executeCommand(data.command, ws);
             }
+        } catch (err) {
+            ws.send(JSON.stringify({ type: 'error', data: err.message }));
         }
-    }
-    return '127.0.0.1';
-}
+    });
+});
 
-function getProcessCount() {
-    try {
-        const output = execSync('ps aux | wc -l').toString();
-        return parseInt(output) || 0;
-    } catch { return 0; }
-}
-
-function formatBytes(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function formatUptime(seconds) {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-}
-
-// QUAN TRỌNG: KHÔNG DÙNG SUDO, chỉ thêm --noconfirm
-function autoYes(command) {
-    if (command.includes('pacman')) {
-        if (!command.includes('--noconfirm')) {
-            command = command + ' --noconfirm';
-        }
-        // KHÔNG thêm sudo vì đang chạy root
-    }
-    return command;
-}
-
+// Execute command với đầy đủ quyền
 function executeCommand(command, ws) {
-    console.log(`Executing as root: ${command}`);
+    console.log(`Executing: ${command}`);
     
-    const finalCommand = autoYes(command);
+    // Tự động thêm --noconfirm cho pacman
+    let finalCommand = command;
+    if (command.includes('pacman -S') && !command.includes('--noconfirm')) {
+        finalCommand = command + ' --noconfirm';
+    }
     
-    const process = spawn('sh', ['-c', finalCommand], {
-        cwd: '/root', // Dùng root home
-        env: { ...process.env, TERM: 'xterm' }
+    // Spawn process với shell đầy đủ
+    const process = spawn('/bin/bash', ['-c', finalCommand], {
+        cwd: '/root',
+        env: { 
+            ...process.env, 
+            TERM: 'xterm-256color',
+            PS1: '\\u@\\h:\\w\\$ ',
+            PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+        }
     });
 
+    // Handle output
     process.stdout.on('data', (data) => {
         ws.send(JSON.stringify({ type: 'output', data: data.toString() }));
     });
@@ -151,62 +106,22 @@ function executeCommand(command, ws) {
     process.on('close', (code) => {
         ws.send(JSON.stringify({ type: 'output', data: '# ' }));
     });
+
+    process.on('error', (err) => {
+        ws.send(JSON.stringify({ type: 'error', data: err.message }));
+    });
 }
 
-// WebSocket
-wss.on('connection', (ws) => {
-    console.log('Client connected');
-    
-    ws.send(JSON.stringify({ type: 'output', data: '✅ Connected to Arch Linux (Root)\n' }));
-    ws.send(JSON.stringify({ type: 'output', data: '📦 Pacman ready (auto --noconfirm)\n' }));
-    ws.send(JSON.stringify({ type: 'output', data: '# ' }));
-
-    // Gửi stats định kỳ
-    const statsInterval = setInterval(() => {
-        try {
-            const stats = {
-                cpu: getCPUUsage(),
-                cpuModel: os.cpus()[0]?.model || 'Unknown',
-                cpuCores: os.cpus().length,
-                ram: ((os.totalmem() - os.freemem()) / os.totalmem() * 100).toFixed(1),
-                ramUsed: formatBytes(os.totalmem() - os.freemem()),
-                ramTotal: formatBytes(os.totalmem()),
-                disk: getDiskUsage(),
-                diskUsed: getDiskUsed(),
-                diskTotal: getDiskTotal(),
-                ip: getLocalIP(),
-                uptime: formatUptime(os.uptime()),
-                processes: getProcessCount(),
-                loadavg: os.loadavg()[0].toFixed(2)
-            };
-            ws.send(JSON.stringify({ type: 'stats', stats }));
-        } catch (error) {
-            console.error('Stats error:', error);
-        }
-    }, 2000);
-
-    ws.on('message', (message) => {
-        try {
-            const data = JSON.parse(message.toString());
-            if (data.type === 'command') {
-                executeCommand(data.command, ws);
-            }
-        } catch (err) {
-            ws.send(JSON.stringify({ type: 'error', data: err.message }));
-        }
-    });
-
-    ws.on('close', () => {
-        clearInterval(statsInterval);
-        console.log('Client disconnected');
-    });
-});
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
+// Start server
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Server running on port ${PORT}`);
-    console.log(`👤 Running as: ${process.env.USER || 'root'}`);
+    console.log('==========================================');
+    console.log('Arch Linux Full Terminal');
+    console.log('==========================================');
+    console.log(`Port: ${PORT}`);
+    console.log(`Node: ${process.version}`);
+    console.log(`Hostname: ${os.hostname()}`);
+    console.log(`Platform: ${os.platform()} ${os.arch()}`);
+    console.log(`CPUs: ${os.cpus().length}`);
+    console.log(`Memory: ${Math.round(os.totalmem() / 1024 / 1024 / 1024)} GB`);
+    console.log('==========================================');
 });
