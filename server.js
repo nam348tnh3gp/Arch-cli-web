@@ -35,15 +35,15 @@ app.get('/api/stats', (req, res) => {
             ramUsed: formatBytes(os.totalmem() - os.freemem()),
             ramTotal: formatBytes(os.totalmem()),
             disk: getDiskUsage(),
-            diskUsed: '0 GB',
-            diskTotal: '0 GB',
+            diskUsed: getDiskUsed(),
+            diskTotal: getDiskTotal(),
             netDown: '0 KB/s',
             netUp: '0 KB/s',
             ip: getLocalIP(),
-            wifi: 'Arch-Render',
+            wifi: getWifiName(),
             uptime: formatUptime(os.uptime()),
             processes: getProcessCount(),
-            temp: '45°C',
+            temp: getCPUTemp(),
             loadavg: os.loadavg()[0].toFixed(2)
         };
         res.json(stats);
@@ -54,15 +54,19 @@ app.get('/api/stats', (req, res) => {
 
 // Helper functions
 function getCPUUsage() {
-    const cpus = os.cpus();
-    let idle = 0, total = 0;
-    cpus.forEach(cpu => {
-        for (type in cpu.times) {
-            total += cpu.times[type];
-        }
-        idle += cpu.times.idle;
-    });
-    return ((1 - idle / total) * 100).toFixed(1);
+    try {
+        const cpus = os.cpus();
+        let idle = 0, total = 0;
+        cpus.forEach(cpu => {
+            for (let type in cpu.times) {
+                total += cpu.times[type];
+            }
+            idle += cpu.times.idle;
+        });
+        return ((1 - idle / total) * 100).toFixed(1);
+    } catch {
+        return '0';
+    }
 }
 
 function getDiskUsage() {
@@ -73,6 +77,28 @@ function getDiskUsage() {
         return parts[4]?.replace('%', '') || '0';
     } catch {
         return '0';
+    }
+}
+
+function getDiskUsed() {
+    try {
+        const { execSync } = require('child_process');
+        const output = execSync('df -h / | tail -1').toString();
+        const parts = output.split(/\s+/);
+        return parts[2] || '0 GB';
+    } catch {
+        return '0 GB';
+    }
+}
+
+function getDiskTotal() {
+    try {
+        const { execSync } = require('child_process');
+        const output = execSync('df -h / | tail -1').toString();
+        const parts = output.split(/\s+/);
+        return parts[1] || '0 GB';
+    } catch {
+        return '0 GB';
     }
 }
 
@@ -88,6 +114,16 @@ function getLocalIP() {
     return '127.0.0.1';
 }
 
+function getWifiName() {
+    try {
+        const { execSync } = require('child_process');
+        const output = execSync('iwgetid -r 2>/dev/null || echo "Ethernet"').toString().trim();
+        return output || 'Not Connected';
+    } catch {
+        return 'Ethernet';
+    }
+}
+
 function getProcessCount() {
     try {
         const { execSync } = require('child_process');
@@ -95,6 +131,17 @@ function getProcessCount() {
         return parseInt(output) || 0;
     } catch {
         return 0;
+    }
+}
+
+function getCPUTemp() {
+    try {
+        const { execSync } = require('child_process');
+        const output = execSync('cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo "0"').toString();
+        const temp = parseInt(output) / 1000;
+        return temp > 0 ? temp + '°C' : '45°C';
+    } catch {
+        return '45°C';
     }
 }
 
@@ -115,10 +162,18 @@ function formatUptime(seconds) {
     return `${minutes}m`;
 }
 
-// Auto Yes function
+// Auto Yes function - QUAN TRỌNG: xử lý pacman
 function autoYes(command) {
-    if (command.includes('pacman -S') && !command.includes('--noconfirm')) {
-        return command + ' --noconfirm';
+    // Nếu là lệnh pacman, thêm --noconfirm
+    if (command.includes('pacman')) {
+        // Thêm --noconfirm nếu chưa có
+        if (!command.includes('--noconfirm')) {
+            command = command + ' --noconfirm';
+        }
+        // Thêm sudo nếu cần
+        if (!command.startsWith('sudo') && !command.startsWith('su')) {
+            command = 'sudo ' + command;
+        }
     }
     return command;
 }
@@ -129,8 +184,9 @@ function executeCommand(command, ws) {
     
     const finalCommand = autoYes(command);
     
+    // Nếu là lệnh pacman, chạy với sudo
     const process = spawn('sh', ['-c', finalCommand], {
-        cwd: '/root',
+        cwd: '/home/archuser',
         env: { ...process.env, TERM: 'xterm' }
     });
 
@@ -164,11 +220,11 @@ function executeCommand(command, ws) {
 wss.on('connection', (ws) => {
     console.log('Client connected');
     
-    ws.send(JSON.stringify({ type: 'output', data: '✅ Connected to Arch Linux\n' }));
-    ws.send(JSON.stringify({ type: 'output', data: '📊 Real-time system monitoring active\n' }));
+    ws.send(JSON.stringify({ type: 'output', data: '✅ Connected to Arch Linux Pro\n' }));
+    ws.send(JSON.stringify({ type: 'output', data: '📦 Pacman ready (auto sudo + --noconfirm)\n' }));
     ws.send(JSON.stringify({ type: 'output', data: '# ' }));
 
-    // Gửi stats định kỳ qua WebSocket
+    // Gửi stats định kỳ
     const statsInterval = setInterval(() => {
         try {
             const stats = {
@@ -179,15 +235,15 @@ wss.on('connection', (ws) => {
                 ramUsed: formatBytes(os.totalmem() - os.freemem()),
                 ramTotal: formatBytes(os.totalmem()),
                 disk: getDiskUsage(),
-                diskUsed: '0 GB',
-                diskTotal: '0 GB',
+                diskUsed: getDiskUsed(),
+                diskTotal: getDiskTotal(),
                 netDown: '0 KB/s',
                 netUp: '0 KB/s',
                 ip: getLocalIP(),
-                wifi: 'Arch-Render-5G',
+                wifi: getWifiName(),
                 uptime: formatUptime(os.uptime()),
                 processes: getProcessCount(),
-                temp: '45°C',
+                temp: getCPUTemp(),
                 loadavg: os.loadavg()[0].toFixed(2)
             };
             ws.send(JSON.stringify({ type: 'stats', stats }));
@@ -212,10 +268,6 @@ wss.on('connection', (ws) => {
         clearInterval(statsInterval);
         console.log('Client disconnected');
     });
-
-    ws.on('error', (err) => {
-        console.error('WebSocket error:', err);
-    });
 });
 
 // Root route
@@ -229,11 +281,8 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`Arch Terminal Pro Started`);
     console.log(`=================================`);
     console.log(`Port: ${PORT}`);
-    console.log(`Public directory: ${path.join(__dirname, 'public')}`);
     console.log(`Node version: ${process.version}`);
     console.log(`OS: ${os.platform()} ${os.release()}`);
-    console.log(`CPU: ${os.cpus()[0]?.model}`);
-    console.log(`Memory: ${formatBytes(os.totalmem())}`);
     console.log(`=================================`);
     
     // Kiểm tra file index.html
