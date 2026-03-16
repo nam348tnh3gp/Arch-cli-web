@@ -1,0 +1,33 @@
+// package.json
+{
+  "name": "arch-terminal-controller",
+  "version": "1.0.0",
+  "description": "Arch Linux Terminal Controller for Render",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "pm2": "pm2 start server.js --name terminal",
+    "docker:build": "docker build -t arch-terminal .",
+    "docker:run": "docker run -p 80:80 -p 3000:3000 -p 22:22 -v $(pwd)/logs:/app/logs arch-terminal"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "socket.io": "^4.7.2",
+    "http-proxy-middleware": "^2.0.6",
+    "compression": "^1.7.4",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2",
+    "chalk": "^5.3.0",
+    "pm2": "^5.3.0",
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["arch", "linux", "terminal", "render", "root"],
+  "author": "Arch Terminal Controller",
+  "license": "MIT"
+}
