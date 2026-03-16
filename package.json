@@ -1,9 +1,8 @@
 {
-  "name": "arch-terminal",
-  "version": "1.0.0",
-  "description": "Arch Linux Terminal Controller",
+  "name": "arch-terminal-pro",
+  "version": "2.0.0",
+  "description": "Arch Linux Terminal Pro with System Dashboard",
   "main": "server.js",
-  "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
@@ -16,6 +15,6 @@
     "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=16.0.0"
   }
 }
