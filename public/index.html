@@ -1,14 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Arch Terminal Controller</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arch Terminal - Auto Yes</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+        
         body {
             background: #0a0e1a;
             color: #00ff00;
@@ -18,16 +20,66 @@
             display: flex;
             flex-direction: column;
         }
-        h1 {
-            color: #00ff00;
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             border-bottom: 2px solid #00ff00;
             padding-bottom: 10px;
             margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #00ff00;
             font-size: 24px;
             text-shadow: 0 0 10px rgba(0,255,0,0.5);
         }
-        #terminal {
+        
+        .badge {
+            background: #ff0000;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        .badge-green {
+            background: #00aa00;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 8px 16px;
+            background: #1a1e2a;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        
+        .tab.active {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        #terminal, #download-panel {
             flex: 1;
+            display: none;
+        }
+        
+        #terminal.active, #download-panel.active {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #terminal {
             background: #000;
             border: 2px solid #00ff00;
             border-radius: 8px;
@@ -37,8 +89,10 @@
             font-size: 14px;
             line-height: 1.6;
             margin-bottom: 20px;
+            height: 400px;
             box-shadow: inset 0 0 20px rgba(0,255,0,0.1);
         }
+        
         .input-line {
             display: flex;
             align-items: center;
@@ -47,12 +101,14 @@
             border-radius: 8px;
             padding: 10px;
         }
+        
         .prompt {
             color: #ff0000;
             font-weight: bold;
             margin-right: 10px;
             font-size: 16px;
         }
+        
         #command {
             flex: 1;
             background: #000;
@@ -62,61 +118,201 @@
             font-size: 16px;
             outline: none;
         }
-        .status {
+        
+        .quick-commands {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+        
+        .quick-cmd {
+            padding: 5px 10px;
+            background: #1a1e2a;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .quick-cmd:hover {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        .download-section {
+            background: #000;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+            padding: 20px;
+            flex: 1;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #888;
+        }
+        
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 10px;
+            background: #1a1e2a;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            border-radius: 4px;
+        }
+        
+        .btn {
+            background: #1a1e2a;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin-right: 10px;
+            border-radius: 4px;
+        }
+        
+        .btn:hover {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        #download-output {
+            background: #000;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin-top: 15px;
+            white-space: pre-wrap;
+        }
+        
+        .status-bar {
             margin-top: 10px;
             display: flex;
             gap: 20px;
             color: #888;
             font-size: 12px;
         }
-        .connected {
-            color: #00ff00;
-        }
-        .root-badge {
-            background: #ff0000;
-            color: #fff;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            margin-left: 10px;
-        }
-        .output {
-            margin: 5px 0;
-            white-space: pre-wrap;
+        
+        .info-message {
+            color: #888;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
-    <h1>
-        Arch Linux Terminal Controller 
-        <span class="root-badge">ROOT</span>
-    </h1>
-    
-    <div id="terminal">
-        <div class="output">=========================================</div>
-        <div class="output">Arch Linux Terminal Controller [ROOT]</div>
-        <div class="output">=========================================</div>
-        <div class="output">Type 'help' for commands</div>
-        <div class="output">=========================================</div>
+    <div class="header">
+        <h1>
+            Arch Terminal Controller 
+            <span class="badge">ROOT</span>
+            <span class="badge badge-green">AUTO YES</span>
+        </h1>
+        <div class="status-bar" id="connection-status">🔴 Disconnected</div>
     </div>
-    
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('terminal')">Terminal</div>
+        <div class="tab" onclick="switchTab('download')">📥 yt-dlp Downloader</div>
+    </div>
+
+    <!-- Terminal Tab -->
+    <div id="terminal" class="active">
+        <div class="output">=========================================</div>
+        <div class="output">  Arch Terminal with AUTO YES</div>
+        <div class="output">=========================================</div>
+        <div class="output">  ✅ Tự động thêm --noconfirm cho pacman</div>
+        <div class="output">  📥 yt-dlp đã sẵn sàng</div>
+        <div class="output">=========================================</div>
+        <div class="output" id="terminal-content"></div>
+    </div>
+
+    <!-- Download Tab -->
+    <div id="download-panel">
+        <div class="download-section">
+            <h3>📥 yt-dlp Video Downloader</h3>
+            <p class="info-message">Hỗ trợ: YouTube, Facebook, Twitter, TikTok, Instagram, v.v...</p>
+            
+            <div class="input-group">
+                <label>URL:</label>
+                <input type="text" id="video-url" placeholder="Nhập URL video...">
+            </div>
+            
+            <div class="input-group">
+                <label>Định dạng:</label>
+                <select id="video-format">
+                    <option value="best">Best Quality (Video + Audio)</option>
+                    <option value="mp4">MP4 Video</option>
+                    <option value="audio">Audio Only (MP3)</option>
+                    <option value="1080p">1080p MP4</option>
+                    <option value="720p">720p MP4</option>
+                </select>
+            </div>
+            
+            <div>
+                <button onclick="downloadVideo()" class="btn">⬇️ Download</button>
+                <button onclick="listFormats()" class="btn">📋 List Formats</button>
+                <button onclick="showDownloads()" class="btn">📁 Downloads</button>
+                <button onclick="installYtDlp()" class="btn">📦 Cài yt-dlp (auto yes)</button>
+            </div>
+            
+            <div id="download-output">
+                Sẵn sàng download...
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Commands -->
+    <div class="quick-commands">
+        <button class="quick-cmd" onclick="addCommand('pacman -S yt-dlp')">📦 Cài yt-dlp</button>
+        <button class="quick-cmd" onclick="addCommand('pacman -S ffmpeg')">🎬 Cài ffmpeg</button>
+        <button class="quick-cmd" onclick="addCommand('pacman -Syu')">🔄 Update system</button>
+        <button class="quick-cmd" onclick="addCommand('yt-dlp -F')">📋 List formats</button>
+        <button class="quick-cmd" onclick="addCommand('clear')">🗑️ Clear</button>
+    </div>
+
+    <!-- Command Input -->
     <div class="input-line">
         <span class="prompt">#</span>
-        <input type="text" id="command" placeholder="Enter command as root..." autocomplete="off">
+        <input type="text" id="command" placeholder="Gõ lệnh (tự động thêm --noconfirm)..." autocomplete="off">
     </div>
-    
-    <div class="status">
-        <span id="connection-status">🔴 Disconnected</span>
-        <span id="hostname">Host: -</span>
-        <span id="time">Time: <span id="clock"></span></span>
+
+    <div class="status-bar">
+        <span id="yt-version">yt-dlp: đang kiểm tra...</span>
+        <span id="auto-yes-status">✅ Auto Yes: Active</span>
+        <span id="clock"></span>
     </div>
 
     <script>
+        // Elements
         const terminal = document.getElementById('terminal');
+        const terminalContent = document.getElementById('terminal-content');
         const commandInput = document.getElementById('command');
         const connectionStatus = document.getElementById('connection-status');
+        const downloadOutput = document.getElementById('download-output');
+        const ytVersion = document.getElementById('yt-version');
+        
         let ws = null;
+        let commandHistory = [];
+        let historyIndex = -1;
 
+        // Initialize
+        function init() {
+            connect();
+            updateClock();
+            setInterval(updateClock, 1000);
+            commandInput.focus();
+        }
+
+        // WebSocket connection
         function connect() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}`;
@@ -124,44 +320,115 @@
             ws = new WebSocket(wsUrl);
             
             ws.onopen = () => {
-                connectionStatus.innerHTML = '🟢 Connected (Root)';
-                connectionStatus.className = 'connected';
-                log('✅ Connected to Arch Linux with ROOT privileges');
-                log('⚠️ You are operating as root - be careful!');
+                connectionStatus.innerHTML = '🟢 Connected (Auto Yes)';
+                log('✅ Kết nối thành công!');
+                log('ℹ️ Tự động thêm --noconfirm cho lệnh pacman');
+                log('📥 yt-dlp đã sẵn sàng');
                 log('# ');
             };
             
             ws.onmessage = (e) => {
                 const data = JSON.parse(e.data);
+                
                 if (data.type === 'output') {
-                    log(data.data);
-                    log('# ');
-                } else if (data.type === 'system') {
+                    if (data.data === '# ') {
+                        terminalContent.innerHTML += `<span style="color: #ff0000;"># </span>`;
+                    } else {
+                        terminalContent.innerHTML += escapeHtml(data.data);
+                    }
+                }
+                else if (data.type === 'ytdlp-output') {
+                    downloadOutput.innerHTML += escapeHtml(data.data);
+                }
+                else if (data.type === 'ytdlp-done') {
+                    downloadOutput.innerHTML += `<br>${data.data}<br>`;
+                }
+                else if (data.type === 'system') {
                     log(`ℹ️ ${data.data}`);
-                } else if (data.type === 'error') {
+                }
+                else if (data.type === 'error') {
                     log(`❌ ${data.data}`);
                     log('# ');
                 }
+                
+                // Scroll to bottom
+                terminal.scrollTop = terminal.scrollHeight;
+                downloadOutput.scrollTop = downloadOutput.scrollHeight;
             };
             
             ws.onclose = () => {
                 connectionStatus.innerHTML = '🔴 Disconnected';
-                connectionStatus.className = '';
-                log('❌ Disconnected from server');
+                log('❌ Mất kết nối, đang kết nối lại...');
                 setTimeout(connect, 3000);
-            };
-            
-            ws.onerror = (error) => {
-                log(`❌ WebSocket error: ${error.message}`);
             };
         }
 
-        function log(message) {
-            if (message === '# ') {
-                terminal.innerHTML += `<div class="output" style="color: #ff0000;"># </div>`;
-            } else {
-                terminal.innerHTML += `<div class="output">${escapeHtml(message)}</div>`;
+        // Auto Yes function
+        function autoYes(command) {
+            // Pacman commands
+            if (command.match(/^pacman -S/) || command.match(/^sudo pacman -S/)) {
+                if (!command.includes('--noconfirm')) {
+                    if (command.includes('pacman -Syu')) {
+                        command = command.replace('pacman -Syu', 'pacman -Syu --noconfirm');
+                    } else if (command.includes('pacman -S')) {
+                        command = command.replace('pacman -S', 'pacman -S --noconfirm');
+                    }
+                    log('ℹ️ Tự động thêm --noconfirm\n');
+                }
             }
+            return command;
+        }
+
+        // Send command
+        function sendCommand() {
+            const cmd = commandInput.value.trim();
+            
+            if (!cmd) return;
+            
+            // Add to history
+            commandHistory.push(cmd);
+            historyIndex = commandHistory.length;
+            
+            // Special commands
+            if (cmd.toLowerCase() === 'clear') {
+                terminalContent.innerHTML = '';
+                log('=========================================');
+                log('  Arch Terminal with AUTO YES');
+                log('=========================================');
+                log('# ');
+                commandInput.value = '';
+                return;
+            }
+            
+            if (cmd.toLowerCase() === 'exit') {
+                ws.close();
+                commandInput.value = '';
+                return;
+            }
+            
+            // Display command
+            log(`[root@arch]# ${cmd}\n`);
+            
+            // Auto add --noconfirm
+            const finalCmd = autoYes(cmd);
+            
+            // Send via WebSocket
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'command',
+                    command: finalCmd
+                }));
+            } else {
+                log('❌ Chưa kết nối server\n');
+                log('# ');
+            }
+            
+            commandInput.value = '';
+        }
+
+        // Helper functions
+        function log(message) {
+            terminalContent.innerHTML += escapeHtml(message);
             terminal.scrollTop = terminal.scrollHeight;
         }
 
@@ -171,55 +438,141 @@
             return div.innerHTML;
         }
 
-        commandInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && commandInput.value.trim()) {
-                const cmd = commandInput.value.trim();
-                
-                if (cmd.toLowerCase() === 'clear') {
-                    terminal.innerHTML = '';
-                    log('=========================================');
-                    log('Arch Linux Terminal Controller [ROOT]');
-                    log('=========================================');
-                    log('# ');
-                } else if (cmd.toLowerCase() === 'exit') {
-                    ws.close();
-                } else {
-                    log(`[root@arch]# ${cmd}`);
-                    
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({
-                            type: 'command',
-                            command: cmd
-                        }));
-                    } else {
-                        log('❌ Not connected to server');
-                        log('# ');
+        function addCommand(cmd) {
+            commandInput.value = cmd;
+            commandInput.focus();
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('terminal').classList.remove('active');
+            document.getElementById('download-panel').classList.remove('active');
+            
+            if (tab === 'terminal') {
+                document.getElementById('terminal').classList.add('active');
+                document.querySelector('.tab').classList.add('active');
+            } else {
+                document.getElementById('download-panel').classList.add('active');
+                document.querySelectorAll('.tab')[1].classList.add('active');
+            }
+        }
+
+        // Download functions
+        function downloadVideo() {
+            const url = document.getElementById('video-url').value;
+            const format = document.getElementById('video-format').value;
+            
+            if (!url) {
+                alert('Vui lòng nhập URL');
+                return;
+            }
+            
+            downloadOutput.innerHTML = '⏬ Đang download...\n';
+            
+            let command = '';
+            switch(format) {
+                case 'audio':
+                    command = '-x --audio-format mp3';
+                    break;
+                case 'mp4':
+                    command = '-f "best[ext=mp4]"';
+                    break;
+                case '1080p':
+                    command = '-f "best[height<=1080][ext=mp4]"';
+                    break;
+                case '720p':
+                    command = '-f "best[height<=720][ext=mp4]"';
+                    break;
+                default:
+                    command = '-f best';
+            }
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'command',
+                    command: `yt-dlp ${command} "${url}"`
+                }));
+            }
+        }
+
+        function listFormats() {
+            const url = document.getElementById('video-url').value;
+            if (!url) {
+                alert('Vui lòng nhập URL');
+                return;
+            }
+            
+            downloadOutput.innerHTML = '📋 Đang lấy danh sách formats...\n';
+            
+            ws.send(JSON.stringify({
+                type: 'command',
+                command: `yt-dlp -F "${url}"`
+            }));
+        }
+
+        function showDownloads() {
+            fetch('/api/downloads')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.files) {
+                        downloadOutput.innerHTML = '📁 Files đã download:\n';
+                        data.files.forEach(f => {
+                            downloadOutput.innerHTML += `- ${f}\n`;
+                        });
                     }
+                });
+        }
+
+        function installYtDlp() {
+            log('📦 Đang cài yt-dlp...\n');
+            ws.send(JSON.stringify({
+                type: 'command',
+                command: 'pacman -S --noconfirm yt-dlp ffmpeg'
+            }));
+        }
+
+        // Command history
+        commandInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    commandInput.value = commandHistory[historyIndex];
                 }
-                
-                commandInput.value = '';
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    commandInput.value = commandHistory[historyIndex];
+                } else {
+                    historyIndex = commandHistory.length;
+                    commandInput.value = '';
+                }
+            }
+        });
+
+        // Enter key
+        commandInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendCommand();
             }
         });
 
         // Update clock
         function updateClock() {
-            document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleTimeString();
         }
-        setInterval(updateClock, 1000);
-        updateClock();
 
-        // Get hostname
+        // Get yt-dlp version
         fetch('/health')
             .then(res => res.json())
             .then(data => {
-                document.getElementById('hostname').textContent = `Host: ${data.hostname}`;
+                ytVersion.textContent = `yt-dlp: ${data.ytdlp || 'unknown'}`;
             });
 
-        // Connect WebSocket
-        connect();
-
-        // Focus input
-        commandInput.focus();
+        // Initialize
+        init();
     </script>
 </body>
 </html>
