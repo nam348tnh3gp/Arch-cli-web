@@ -1,7 +1,7 @@
-# Dockerfile - Arch Terminal Controller (Fixed)
+# Dockerfile - Arch Terminal Controller with Auto Yes
 FROM archlinux:latest
 
-# Cập nhật hệ thống
+# Cập nhật hệ thống và cài đặt packages (tự động yes)
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm \
     nodejs \
@@ -9,13 +9,44 @@ RUN pacman -Syu --noconfirm && \
     nginx \
     openssh \
     curl \
+    wget \
+    python \
+    ffmpeg \
+    git \
+    sudo \
     && pacman -Scc --noconfirm
+
+# Cấu hình pacman luôn tự động đồng ý
+RUN echo "NoConfirm = yes" >> /etc/pacman.conf
+
+# Tạo alias cho pacman
+RUN echo 'alias pacman="pacman --noconfirm"' >> /root/.bashrc && \
+    echo 'alias update="pacman -Syu --noconfirm"' >> /root/.bashrc && \
+    echo 'alias install="pacman -S --noconfirm"' >> /root/.bashrc
+
+# Cài yt-dlp bản mới nhất từ GitHub
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
+
+# Tạo function cho yt-dlp
+RUN echo 'yt-mp3() { yt-dlp -x --audio-format mp3 "$1"; }' >> /root/.bashrc && \
+    echo 'yt-best() { yt-dlp -f best "$1"; }' >> /root/.bashrc && \
+    echo 'yt-list() { yt-dlp -F "$1"; }' >> /root/.bashrc
+
+# Kiểm tra phiên bản
+RUN yt-dlp --version
+
+# Tạo thư mục downloads
+RUN mkdir -p /downloads && \
+    chmod 777 /downloads
 
 # Tạo thư mục cần thiết
 RUN mkdir -p /etc/nginx/conf.d && \
     mkdir -p /run/nginx && \
     mkdir -p /var/log/nginx && \
-    mkdir -p /app/public
+    mkdir -p /app/public && \
+    mkdir -p /app/logs && \
+    mkdir -p /app/scripts
 
 # Tạo thư mục làm việc
 WORKDIR /app
@@ -34,7 +65,7 @@ RUN ssh-keygen -A && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Tạo file cấu hình Nginx
+# Cấu hình Nginx
 RUN echo '# Arch Terminal Nginx Config' > /etc/nginx/conf.d/default.conf && \
     echo 'server {' >> /etc/nginx/conf.d/default.conf && \
     echo '    listen 80;' >> /etc/nginx/conf.d/default.conf && \
@@ -57,7 +88,11 @@ RUN echo '# Arch Terminal Nginx Config' > /etc/nginx/conf.d/default.conf && \
 
 # Tạo script start
 RUN echo '#!/bin/bash' > /start.sh && \
-    echo 'echo "Starting Arch Terminal Controller..."' >> /start.sh && \
+    echo 'echo "========================================="' >> /start.sh && \
+    echo 'echo "  Arch Terminal Controller - Auto Yes   "' >> /start.sh && \
+    echo 'echo "========================================="' >> /start.sh && \
+    echo 'echo "yt-dlp version: $(yt-dlp --version)"' >> /start.sh && \
+    echo 'echo "========================================="' >> /start.sh && \
     echo 'echo "Starting SSH..."' >> /start.sh && \
     echo '/usr/bin/sshd' >> /start.sh && \
     echo '' >> /start.sh && \
