@@ -12,9 +12,9 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
 
-// Lưu directory và session cho mỗi client
+// Lưu directory và processes cho mỗi client
 const clientDirs = new Map();
-const clientSessions = new Map(); // Lưu trạng thái input mode
+const clientProcesses = new Map(); // Lưu các process đang chạy
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -24,31 +24,13 @@ app.get('/health', (req, res) => {
         status: 'ok',
         time: new Date().toISOString(),
         hostname: os.hostname(),
-        uptime: os.uptime(),
-        cpu: os.cpus().length,
-        memory: os.totalmem()
+        uptime: os.uptime()
     });
 });
 
-// API endpoint cho system info
-app.post('/api/exec', express.json(), (req, res) => {
-    const { command } = req.body;
-    try {
-        const output = execSync(command, { 
-            encoding: 'utf8',
-            timeout: 5000,
-            shell: '/bin/bash'
-        });
-        res.json({ output });
-    } catch (error) {
-        res.json({ output: error.message });
-    }
-});
-
-// API lấy system stats
+// API stats
 app.get('/api/stats', (req, res) => {
     try {
-        // CPU Usage
         const cpus = os.cpus();
         let totalIdle = 0, totalTick = 0;
         cpus.forEach(cpu => {
@@ -59,11 +41,9 @@ app.get('/api/stats', (req, res) => {
         });
         const cpuUsage = ((1 - totalIdle / totalTick) * 100).toFixed(1);
 
-        // Memory Usage
         const totalMem = os.totalmem();
         const freeMem = os.freemem();
-        const usedMem = totalMem - freeMem;
-        const memUsage = ((usedMem / totalMem) * 100).toFixed(1);
+        const memUsage = ((totalMem - freeMem) / totalMem * 100).toFixed(1);
 
         res.json({
             cpu: cpuUsage,
@@ -79,28 +59,18 @@ app.get('/api/stats', (req, res) => {
 wss.on('connection', (ws) => {
     console.log('Client connected');
     
-    // Set initial directory và session
     clientDirs.set(ws, '/root');
-    clientSessions.set(ws, {
-        inputMode: false,
-        currentFile: null,
-        fileContent: []
-    });
     
     ws.send(JSON.stringify({ 
         type: 'output', 
-        data: '==========================================\n' +
-              '  Arch Linux Full Terminal\n' +
-              '==========================================\n' +
-              '  ✓ System monitoring active\n' +
-              '  ✓ CPU, RAM stats available\n' +
-              '  ✓ Tạo file: cat > filename.js\n' +
-              '  ✓ Kết thúc: Ctrl+D\n' +
-              '==========================================\n'
+        data: '\n=== Arch Linux Terminal ===\n' +
+              '✓ Hỗ trợ chương trình interactive (node, python, v.v.)\n' +
+              '✓ Gõ input trực tiếp vào terminal\n' +
+              '✓ Ctrl+C để dừng chương trình\n\n'
     }));
     ws.send(JSON.stringify({ type: 'output', data: '# ' }));
 
-    // Gửi stats mỗi 2 giây
+    // Stats interval
     const statsInterval = setInterval(() => {
         try {
             const cpus = os.cpus();
@@ -129,19 +99,31 @@ wss.on('connection', (ws) => {
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
-            const session = clientSessions.get(ws);
             
             if (data.type === 'command') {
-                // Kiểm tra nếu đang trong input mode
-                if (session.inputMode) {
-                    // Xử lý input mode (cat > file)
-                    handleInputMode(data.command, ws, session);
+                // Nếu có process đang chạy, gửi input vào process đó
+                const currentProc = clientProcesses.get(ws);
+                if (currentProc && !currentProc.killed) {
+                    // Gửi input vào process đang chạy
+                    currentProc.stdin.write(data.command + '\n');
                 } else {
+                    // Không có process, chạy command mới
                     executeCommand(data.command, ws);
                 }
-            } else if (data.type === 'input') {
-                // Xử lý input từ web terminal
-                handleInputMode(data.data, ws, session);
+            } 
+            else if (data.type === 'stdin') {
+                // Xử lý input trực tiếp (cho các chương trình interactive)
+                const currentProc = clientProcesses.get(ws);
+                if (currentProc && !currentProc.killed) {
+                    currentProc.stdin.write(data.data);
+                }
+            }
+            else if (data.type === 'sigint') {
+                // Gửi Ctrl+C
+                const currentProc = clientProcesses.get(ws);
+                if (currentProc && !currentProc.killed) {
+                    currentProc.kill('SIGINT');
+                }
             }
         } catch (err) {
             ws.send(JSON.stringify({ type: 'error', data: err.message }));
@@ -149,49 +131,27 @@ wss.on('connection', (ws) => {
     });
 
     ws.on('close', () => {
+        // Kill tất cả processes khi client disconnect
+        const proc = clientProcesses.get(ws);
+        if (proc) {
+            proc.kill();
+        }
         clearInterval(statsInterval);
         clientDirs.delete(ws);
-        clientSessions.delete(ws);
+        clientProcesses.delete(ws);
     });
 });
-
-// Xử lý input mode (cat > file)
-function handleInputMode(input, ws, session) {
-    const currentDir = clientDirs.get(ws) || '/root';
-    
-    // Ctrl+D để kết thúc
-    if (input === '\x04') { // Ctrl+D
-        const filePath = path.join(currentDir, session.currentFile);
-        try {
-            fs.writeFileSync(filePath, session.fileContent.join('\n'));
-            ws.send(JSON.stringify({ 
-                type: 'output', 
-                data: `\n✅ File ${session.currentFile} created successfully!\n`
-            }));
-        } catch (err) {
-            ws.send(JSON.stringify({ 
-                type: 'output', 
-                data: `\n❌ Error: ${err.message}\n`
-            }));
-        }
-        
-        session.inputMode = false;
-        session.currentFile = null;
-        session.fileContent = [];
-        ws.send(JSON.stringify({ type: 'output', data: '# ' }));
-        return;
-    }
-    
-    // Thêm dòng vào file content
-    session.fileContent.push(input);
-    ws.send(JSON.stringify({ type: 'output', data: '' })); // Echo nhẹ
-}
 
 function executeCommand(command, ws) {
     console.log(`Executing: ${command}`);
     
     const currentDir = clientDirs.get(ws) || '/root';
-    const session = clientSessions.get(ws);
+    
+    // Kill process cũ nếu có
+    const oldProc = clientProcesses.get(ws);
+    if (oldProc) {
+        oldProc.kill();
+    }
     
     // Xử lý lệnh cd
     if (command.startsWith('cd ')) {
@@ -217,49 +177,51 @@ function executeCommand(command, ws) {
         return;
     }
     
-    // Xử lý cat > file (bật input mode)
-    if (command.startsWith('cat > ')) {
-        const filename = command.substring(6).trim();
-        session.inputMode = true;
-        session.currentFile = filename;
-        session.fileContent = [];
-        ws.send(JSON.stringify({ 
-            type: 'output', 
-            data: `📝 Đang tạo file ${filename}. Nhập nội dung và nhấn Ctrl+D để kết thúc:\n`
-        }));
-        return;
-    }
-    
     // Auto --noconfirm cho pacman
     let finalCommand = command;
     if (command.includes('pacman -S') && !command.includes('--noconfirm')) {
         finalCommand = command + ' --noconfirm';
     }
     
+    // Spawn process với pty để hỗ trợ interactive
     const proc = spawn('/bin/bash', ['-c', finalCommand], {
         cwd: currentDir,
-        env: { ...process.env, TERM: 'xterm' }
+        env: { 
+            ...process.env, 
+            TERM: 'xterm-256color',
+            NODE_NO_READLINE: '1' // Tắt readline của node
+        },
+        stdio: ['pipe', 'pipe', 'pipe'] // Cho phép stdin
     });
-
+    
+    // Lưu process
+    clientProcesses.set(ws, proc);
+    
+    // Xử lý stdout
     proc.stdout.on('data', (data) => {
         ws.send(JSON.stringify({ type: 'output', data: data.toString() }));
     });
-
+    
+    // Xử lý stderr
     proc.stderr.on('data', (data) => {
         ws.send(JSON.stringify({ type: 'output', data: data.toString() }));
     });
-
-    proc.on('close', () => {
+    
+    // Xử lý khi process kết thúc
+    proc.on('close', (code) => {
+        ws.send(JSON.stringify({ type: 'output', data: `\nProcess exited with code ${code}\n` }));
         ws.send(JSON.stringify({ type: 'output', data: '# ' }));
+        clientProcesses.delete(ws);
+    });
+    
+    // Xử lý lỗi
+    proc.on('error', (err) => {
+        ws.send(JSON.stringify({ type: 'error', data: err.message }));
+        ws.send(JSON.stringify({ type: 'output', data: '# ' }));
+        clientProcesses.delete(ws);
     });
 }
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log('==========================================');
-    console.log('Arch Linux Terminal');
-    console.log('==========================================');
-    console.log(`Port: ${PORT}`);
-    console.log(`CPU: ${os.cpus().length} cores`);
-    console.log(`RAM: ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(1)} GB`);
-    console.log('==========================================');
+    console.log(`✅ Server running on port ${PORT}`);
 });
