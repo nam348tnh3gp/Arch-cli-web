@@ -43,111 +43,118 @@ RUN ssh-keygen -A && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Cấu hình Nginx - SỬA LỖI Ở ĐÂY
-RUN echo 'server { \
-    listen 80; \
-    server_name localhost; \
-    location / { \
-        root /app/public; \
-        index index.html; \
-        try_files $uri $uri/ /index.html; \
-    } \
-    location /ws { \
-        proxy_pass http://localhost:3000; \
-        proxy_http_version 1.1; \
-        proxy_set_header Upgrade $http_upgrade; \
-        proxy_set_header Connection "upgrade"; \
-        proxy_set_header Host $host; \
-    } \
-    location /api { \
-        proxy_pass http://localhost:3000; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-    } \
+# Cấu hình Nginx
+RUN echo 'server {\n\
+    listen 80;\n\
+    server_name localhost;\n\
+    \n\
+    location / {\n\
+        root /app/public;\n\
+        index index.html;\n\
+        try_files $uri $uri/ /index.html;\n\
+    }\n\
+    \n\
+    location /ws {\n\
+        proxy_pass http://localhost:3000;\n\
+        proxy_http_version 1.1;\n\
+        proxy_set_header Upgrade $http_upgrade;\n\
+        proxy_set_header Connection "upgrade";\n\
+        proxy_set_header Host $host;\n\
+    }\n\
+    \n\
+    location /api {\n\
+        proxy_pass http://localhost:3000;\n\
+        proxy_set_header Host $host;\n\
+        proxy_set_header X-Real-IP $remote_addr;\n\
+    }\n\
 }' > /etc/nginx/conf.d/terminal.conf
 
-# Script khởi động
-RUN echo '#!/bin/bash
-echo "========================================="
-echo "  Arch Terminal Controller - Root Mode  "
-echo "========================================="
-echo "Starting at: $(date)"
+# Tạo file start.sh
+RUN echo '#!/bin/bash' > /start.sh && \
+    echo 'echo "========================================="' >> /start.sh && \
+    echo 'echo "  Arch Terminal Controller - Root Mode  "' >> /start.sh && \
+    echo 'echo "========================================="' >> /start.sh && \
+    echo 'echo "Starting at: $(date)"' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Khởi động SSH' >> /start.sh && \
+    echo 'echo "Starting SSH server..."' >> /start.sh && \
+    echo '/usr/bin/sshd' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Khởi động Nginx' >> /start.sh && \
+    echo 'echo "Starting Nginx..."' >> /start.sh && \
+    echo 'nginx' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Khởi động Node.js server' >> /start.sh && \
+    echo 'echo "Starting Node.js server..."' >> /start.sh && \
+    echo 'cd /app' >> /start.sh && \
+    echo 'node server.js > /app/logs/node.log 2>&1 &' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo 'echo ""' >> /start.sh && \
+    echo 'echo "Services started successfully!"' >> /start.sh && \
+    echo 'echo "-----------------------------------------"' >> /start.sh && \
+    echo 'echo "Web Interface: http://localhost:80"' >> /start.sh && \
+    echo 'echo "WebSocket: ws://localhost:3000"' >> /start.sh && \
+    echo 'echo "SSH: ssh root@localhost -p 22"' >> /start.sh && \
+    echo 'echo "-----------------------------------------"' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Giữ container chạy' >> /start.sh && \
+    echo 'tail -f /app/logs/*.log' >> /start.sh && \
+    chmod +x /start.sh
 
-# Khởi động SSH
-echo "Starting SSH server..."
-/usr/bin/sshd
+# Tạo file auto-deploy.sh
+RUN echo '#!/bin/bash' > /app/scripts/auto-deploy.sh && \
+    echo 'echo "[$(date)] Starting auto-deploy..."' >> /app/scripts/auto-deploy.sh && \
+    echo '' >> /app/scripts/auto-deploy.sh && \
+    echo '# Pull latest code (nếu có git)' >> /app/scripts/auto-deploy.sh && \
+    echo 'if [ -d ".git" ]; then' >> /app/scripts/auto-deploy.sh && \
+    echo '    echo "Pulling latest code..."' >> /app/scripts/auto-deploy.sh && \
+    echo '    git pull origin main' >> /app/scripts/auto-deploy.sh && \
+    echo 'fi' >> /app/scripts/auto-deploy.sh && \
+    echo '' >> /app/scripts/auto-deploy.sh && \
+    echo '# Cài đặt dependencies mới' >> /app/scripts/auto-deploy.sh && \
+    echo 'echo "Installing dependencies..."' >> /app/scripts/auto-deploy.sh && \
+    echo 'npm install' >> /app/scripts/auto-deploy.sh && \
+    echo '' >> /app/scripts/auto-deploy.sh && \
+    echo '# Restart services' >> /app/scripts/auto-deploy.sh && \
+    echo 'echo "Restarting services..."' >> /app/scripts/auto-deploy.sh && \
+    echo 'pkill node || true' >> /app/scripts/auto-deploy.sh && \
+    echo 'node server.js > /app/logs/node.log 2>&1 &' >> /app/scripts/auto-deploy.sh && \
+    echo 'nginx -s reload' >> /app/scripts/auto-deploy.sh && \
+    echo '' >> /app/scripts/auto-deploy.sh && \
+    echo 'echo "[$(date)] Auto-deploy completed!"' >> /app/scripts/auto-deploy.sh && \
+    chmod +x /app/scripts/auto-deploy.sh
 
-# Khởi động Nginx
-echo "Starting Nginx..."
-nginx
+# Tạo file monitor.sh
+RUN echo '#!/bin/bash' > /app/scripts/monitor.sh && \
+    echo 'while true; do' >> /app/scripts/monitor.sh && \
+    echo '    # CPU usage' >> /app/scripts/monitor.sh && \
+    echo '    CPU=$(top -bn1 | grep "Cpu(s)" | awk "{print \$2}" | cut -d"%" -f1)' >> /app/scripts/monitor.sh && \
+    echo '    ' >> /app/scripts/monitor.sh && \
+    echo '    # Memory usage' >> /app/scripts/monitor.sh && \
+    echo '    MEM=$(free | grep Mem | awk "{print \$3/\$2 * 100.0}")' >> /app/scripts/monitor.sh && \
+    echo '    ' >> /app/scripts/monitor.sh && \
+    echo '    # Disk usage' >> /app/scripts/monitor.sh && \
+    echo '    DISK=$(df -h / | awk "NR==2 {print \$5}" | cut -d"%" -f1)' >> /app/scripts/monitor.sh && \
+    echo '    ' >> /app/scripts/monitor.sh && \
+    echo '    # Log to file' >> /app/scripts/monitor.sh && \
+    echo '    echo "$(date -Iseconds),CPU:$CPU%,MEM:$MEM%,DISK:$DISK%" >> /app/logs/metrics.csv' >> /app/scripts/monitor.sh && \
+    echo '    ' >> /app/scripts/monitor.sh && \
+    echo '    sleep 60' >> /app/scripts/monitor.sh && \
+    echo 'done' >> /app/scripts/monitor.sh && \
+    chmod +x /app/scripts/monitor.sh
 
-# Khởi động Node.js server
-echo "Starting Node.js server..."
-cd /app
-node server.js > /app/logs/node.log 2>&1 &
-
-echo ""
-echo "Services started successfully!"
-echo "-----------------------------------------"
-echo "Web Interface: http://localhost:80"
-echo "WebSocket: ws://localhost:3000"
-echo "SSH: ssh root@localhost -p 22"
-echo "-----------------------------------------"
-
-# Giữ container chạy
-tail -f /app/logs/*.log' > /start.sh && chmod +x /start.sh
-
-# Script auto-deploy
-RUN echo '#!/bin/bash
-echo "[$(date)] Starting auto-deploy..."
-
-# Pull latest code (nếu có git)
-if [ -d ".git" ]; then
-    echo "Pulling latest code..."
-    git pull origin main
-fi
-
-# Cài đặt dependencies mới
-echo "Installing dependencies..."
-npm install
-
-# Restart services
-echo "Restarting services..."
-pkill node || true
-node server.js > /app/logs/node.log 2>&1 &
-nginx -s reload
-
-echo "[$(date)] Auto-deploy completed!"' > /app/scripts/auto-deploy.sh && chmod +x /app/scripts/auto-deploy.sh
-
-# Script monitor
-RUN echo '#!/bin/bash
-while true; do
-    # CPU usage
-    CPU=$(top -bn1 | grep "Cpu(s)" | awk "{print \$2}" | cut -d"%" -f1)
-    
-    # Memory usage
-    MEM=$(free | grep Mem | awk "{print \$3/\$2 * 100.0}")
-    
-    # Disk usage
-    DISK=$(df -h / | awk "NR==2 {print \$5}" | cut -d"%" -f1)
-    
-    # Log to file
-    echo "$(date -Iseconds),CPU:$CPU%,MEM:$MEM%,DISK:$DISK%" >> /app/logs/metrics.csv
-    
-    sleep 60
-done' > /app/scripts/monitor.sh && chmod +x /app/scripts/monitor.sh
-
-# Script health check
-RUN echo '#!/bin/bash
-echo "Content-type: application/json"
-echo ""
-
-if pgrep node > /dev/null && pgrep nginx > /dev/null; then
-    echo "{\"status\":\"healthy\",\"timestamp\":\"$(date -Iseconds)\"}"
-else
-    echo "{\"status\":\"unhealthy\",\"timestamp\":\"$(date -Iseconds)\"}"
-    exit 1
-fi' > /usr/local/bin/healthcheck && chmod +x /usr/local/bin/healthcheck
+# Tạo file healthcheck
+RUN echo '#!/bin/bash' > /usr/local/bin/healthcheck && \
+    echo 'echo "Content-type: application/json"' >> /usr/local/bin/healthcheck && \
+    echo 'echo ""' >> /usr/local/bin/healthcheck && \
+    echo '' >> /usr/local/bin/healthcheck && \
+    echo 'if pgrep node > /dev/null && pgrep nginx > /dev/null; then' >> /usr/local/bin/healthcheck && \
+    echo '    echo "{\"status\":\"healthy\",\"timestamp\":\"$(date -Iseconds)\"}"' >> /usr/local/bin/healthcheck && \
+    echo 'else' >> /usr/local/bin/healthcheck && \
+    echo '    echo "{\"status\":\"unhealthy\",\"timestamp\":\"$(date -Iseconds)\"}"' >> /usr/local/bin/healthcheck && \
+    echo '    exit 1' >> /usr/local/bin/healthcheck && \
+    echo 'fi' >> /usr/local/bin/healthcheck && \
+    chmod +x /usr/local/bin/healthcheck
 
 # Expose ports
 EXPOSE 80 443 3000 22
