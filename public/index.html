@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arch Terminal Pro - System Dashboard</title>
+    <title>Arch Linux Full Terminal</title>
     <style>
-        /* Style giống như trên */
         * {
             margin: 0;
             padding: 0;
@@ -13,189 +12,64 @@
         }
 
         body {
-            background: linear-gradient(135deg, #0a0f1e 0%, #1a1f2e 100%);
+            background: #0a0f1e;
             color: #00ff9d;
             font-family: 'Fira Code', 'Courier New', monospace;
-            min-height: 100vh;
-            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
-        .dashboard {
-            display: grid;
-            grid-template-columns: 280px 1fr;
+        /* Terminal Toolbar */
+        .toolbar {
+            background: #1a1f2e;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
             gap: 20px;
-            max-width: 1600px;
-            margin: 0 auto;
-        }
-
-        .sidebar {
-            background: rgba(0, 20, 10, 0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid #00ff9d;
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: 0 0 30px rgba(0, 255, 157, 0.2);
-        }
-
-        .logo {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .logo h1 {
-            font-size: 24px;
+            border-bottom: 2px solid #00ff9d;
             color: #00ff9d;
-            text-shadow: 0 0 20px #00ff9d;
-            letter-spacing: 2px;
         }
 
-        .logo .sub {
-            color: #4a5b6e;
-            font-size: 12px;
-            margin-top: 5px;
-        }
-
-        .stat-card {
-            background: rgba(0, 30, 20, 0.5);
-            border: 1px solid #00ff9d;
-            border-radius: 15px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-
-        .stat-title {
-            color: #4a5b6e;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
+        .toolbar-item {
             display: flex;
             align-items: center;
             gap: 5px;
+            font-size: 13px;
         }
 
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .stat-unit {
-            color: #4a5b6e;
-            font-size: 12px;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: rgba(0, 255, 157, 0.1);
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #00ff9d, #00ffcc);
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
-
-        .network-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .net-item {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            padding: 10px;
-            text-align: center;
-        }
-
-        .net-label {
-            color: #4a5b6e;
-            font-size: 11px;
-        }
-
-        .net-value {
+        .toolbar-item i {
             font-size: 16px;
+        }
+
+        .status-badge {
+            background: #00ff9d;
+            color: #0a0f1e;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
             font-weight: bold;
         }
 
-        .main-content {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .terminal-container {
-            background: rgba(0, 20, 10, 0.95);
-            border: 1px solid #00ff9d;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 0 30px rgba(0, 255, 157, 0.2);
-        }
-
-        .terminal-header {
-            background: rgba(0, 255, 157, 0.1);
-            padding: 15px 20px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            border-bottom: 1px solid #00ff9d;
-        }
-
-        .terminal-title {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #00ff9d;
-            font-weight: bold;
-        }
-
-        .terminal-dots {
-            display: flex;
-            gap: 8px;
-            margin-left: auto;
-        }
-
-        .dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-        }
-
-        .dot.red { background: #ff5f56; }
-        .dot.yellow { background: #ffbd2e; }
-        .dot.green { background: #27c93f; }
-
+        /* Main Terminal */
         #terminal {
-            height: 300px;
+            flex: 1;
+            background: #0a0f1e;
             padding: 20px;
             overflow-y: auto;
             font-family: 'Fira Code', monospace;
             font-size: 14px;
             line-height: 1.6;
-            color: #00ff9d;
-            background: #0a0f1e;
+            white-space: pre-wrap;
         }
 
-        .command-area {
-            background: rgba(0, 30, 20, 0.5);
-            padding: 20px;
-            border-top: 1px solid #00ff9d;
-        }
-
-        .input-wrapper {
+        /* Command Input */
+        .command-line {
+            background: #1a1f2e;
+            padding: 15px 20px;
+            border-top: 2px solid #00ff9d;
             display: flex;
             align-items: center;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid #00ff9d;
-            border-radius: 12px;
-            padding: 12px 15px;
         }
 
         .prompt {
@@ -215,308 +89,183 @@
             outline: none;
         }
 
+        #command::placeholder {
+            color: #4a5b6e;
+        }
+
+        /* Quick Commands */
         .quick-commands {
+            padding: 10px 20px;
+            background: #1a1f2e;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
-            margin-top: 15px;
+            border-top: 1px solid #2a3a4a;
         }
 
         .quick-btn {
-            background: rgba(0, 255, 157, 0.1);
+            background: #0a0f1e;
             border: 1px solid #00ff9d;
             color: #00ff9d;
-            padding: 8px 16px;
-            border-radius: 20px;
+            padding: 6px 12px;
+            border-radius: 16px;
             font-size: 12px;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
         }
 
         .quick-btn:hover {
             background: #00ff9d;
-            color: #000;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 255, 157, 0.3);
+            color: #0a0f1e;
         }
 
-        .info-grid {
+        .quick-btn.danger {
+            border-color: #ff5555;
+            color: #ff5555;
+        }
+
+        .quick-btn.danger:hover {
+            background: #ff5555;
+            color: #0a0f1e;
+        }
+
+        /* System Info */
+        .system-info {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            padding: 15px 20px;
+            background: #1a1f2e;
+            border-top: 1px solid #2a3a4a;
+            font-size: 12px;
         }
 
-        .info-card {
-            background: rgba(0, 20, 10, 0.8);
-            border: 1px solid #00ff9d;
-            border-radius: 15px;
-            padding: 15px;
-            text-align: center;
-        }
-
-        .info-icon {
-            font-size: 24px;
-            margin-bottom: 10px;
+        .info-item {
+            display: flex;
+            flex-direction: column;
         }
 
         .info-label {
             color: #4a5b6e;
-            font-size: 12px;
+            font-size: 10px;
             text-transform: uppercase;
         }
 
         .info-value {
-            font-size: 20px;
+            color: #00ff9d;
             font-weight: bold;
-            margin-top: 5px;
         }
 
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-        }
-
-        .status-online {
-            background: rgba(0, 255, 0, 0.2);
-            border: 1px solid #00ff00;
-            color: #00ff00;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #00ff9d;
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
+        /* Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
         }
-
         ::-webkit-scrollbar-track {
             background: #0a0f1e;
         }
-
         ::-webkit-scrollbar-thumb {
             background: #00ff9d;
             border-radius: 4px;
         }
-
-        @media (max-width: 1200px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
-            
-            .info-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
     </style>
 </head>
 <body>
-    <div class="dashboard">
-        <!-- Sidebar Stats -->
-        <div class="sidebar">
-            <div class="logo">
-                <h1>⚡ ARCH PRO</h1>
-                <div class="sub">Terminal Controller v2.0</div>
-            </div>
-
-            <!-- CPU Stats -->
-            <div class="stat-card">
-                <div class="stat-title">
-                    <span>🖥️</span> CPU Usage
-                </div>
-                <div class="stat-value" id="cpu-percent">0%</div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="cpu-progress" style="width: 0%"></div>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #4a5b6e;">
-                    <span>Model: <span id="cpu-model">Loading...</span></span>
-                    <span>Cores: <span id="cpu-cores">0</span></span>
-                </div>
-            </div>
-
-            <!-- RAM Stats -->
-            <div class="stat-card">
-                <div class="stat-title">
-                    <span>🧠</span> Memory Usage
-                </div>
-                <div class="stat-value" id="ram-percent">0%</div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="ram-progress" style="width: 0%"></div>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #4a5b6e;">
-                    <span>Used: <span id="ram-used">0 GB</span></span>
-                    <span>Total: <span id="ram-total">0 GB</span></span>
-                </div>
-            </div>
-
-            <!-- Network Stats -->
-            <div class="stat-card">
-                <div class="stat-title">
-                    <span>🌐</span> Network
-                </div>
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                    <div class="status-badge status-online" id="wifi-status">
-                        <span>●</span> <span id="wifi-text">Connected</span>
-                    </div>
-                    <span style="color: #4a5b6e;" id="wifi-ssid">Loading...</span>
-                </div>
-                
-                <div class="network-stats">
-                    <div class="net-item">
-                        <div class="net-label">⬇️ Download</div>
-                        <div class="net-value" id="net-down">0 KB/s</div>
-                    </div>
-                    <div class="net-item">
-                        <div class="net-label">⬆️ Upload</div>
-                        <div class="net-value" id="net-up">0 KB/s</div>
-                    </div>
-                </div>
-                
-                <div style="margin-top: 10px;">
-                    <div style="display: flex; justify-content: space-between; color: #4a5b6e; font-size: 11px;">
-                        <span>IP Address:</span>
-                        <span id="ip-address">0.0.0.0</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Disk Stats -->
-            <div class="stat-card">
-                <div class="stat-title">
-                    <span>💾</span> Disk Usage
-                </div>
-                <div class="stat-value" id="disk-percent">0%</div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="disk-progress" style="width: 0%"></div>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #4a5b6e;">
-                    <span>Used: <span id="disk-used">0 GB</span></span>
-                    <span>Total: <span id="disk-total">0 GB</span></span>
-                </div>
-            </div>
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <div class="toolbar-item">
+            <i>🐧</i>
+            <span>Arch Linux</span>
+            <span class="status-badge">FULL</span>
         </div>
+        <div class="toolbar-item">
+            <i>📦</i>
+            <span id="package-count">-</span>
+        </div>
+        <div class="toolbar-item">
+            <i>⚡</i>
+            <span id="cpu-usage">-</span>
+        </div>
+        <div class="toolbar-item">
+            <i>🧠</i>
+            <span id="memory-usage">-</span>
+        </div>
+        <div class="toolbar-item" style="margin-left: auto;">
+            <i id="connection-status">●</i>
+            <span id="status-text">Connected</span>
+        </div>
+    </div>
 
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- System Info Cards -->
-            <div class="info-grid">
-                <div class="info-card">
-                    <div class="info-icon">⏰</div>
-                    <div class="info-label">Uptime</div>
-                    <div class="info-value" id="uptime">0h</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-icon">📊</div>
-                    <div class="info-label">Processes</div>
-                    <div class="info-value" id="processes">0</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-icon">🌡️</div>
-                    <div class="info-label">Temperature</div>
-                    <div class="info-value" id="temp">0°C</div>
-                </div>
-                <div class="info-card">
-                    <div class="info-icon">⚡</div>
-                    <div class="info-label">Load Average</div>
-                    <div class="info-value" id="loadavg">0.0</div>
-                </div>
-            </div>
+    <!-- Terminal -->
+    <div id="terminal"></div>
 
-            <!-- Terminal -->
-            <div class="terminal-container">
-                <div class="terminal-header">
-                    <div class="terminal-title">
-                        <span>📟</span> arch-terminal@pro:~$
-                    </div>
-                    <div class="terminal-dots">
-                        <span class="dot red"></span>
-                        <span class="dot yellow"></span>
-                        <span class="dot green"></span>
-                    </div>
-                </div>
-                <div id="terminal"></div>
-                
-                <div class="command-area">
-                    <div class="input-wrapper">
-                        <span class="prompt">#</span>
-                        <input type="text" id="command" placeholder="Enter command (e.g., help, pacman -S yt-dlp, neofetch...)">
-                    </div>
-                    
-                    <div class="quick-commands">
-                        <button class="quick-btn" onclick="addCommand('neofetch')"><span>🖥️</span> System Info</button>
-                        <button class="quick-btn" onclick="addCommand('htop')"><span>📊</span> HTOP</button>
-                        <button class="quick-btn" onclick="addCommand('pacman -S yt-dlp')"><span>📦</span> Install yt-dlp</button>
-                        <button class="quick-btn" onclick="addCommand('yt-dlp -F')"><span>📋</span> List Formats</button>
-                        <button class="quick-btn" onclick="addCommand('clear')"><span>🗑️</span> Clear</button>
-                        <button class="quick-btn" onclick="addCommand('df -h')"><span>💾</span> Disk</button>
-                        <button class="quick-btn" onclick="addCommand('free -h')"><span>🧠</span> Memory</button>
-                        <button class="quick-btn" onclick="addCommand('ip a')"><span>🌐</span> Network</button>
-                    </div>
-                </div>
-            </div>
+    <!-- Quick Commands -->
+    <div class="quick-commands">
+        <button class="quick-btn" onclick="addCommand('neofetch')">🖥️ System Info</button>
+        <button class="quick-btn" onclick="addCommand('htop')">📊 HTOP</button>
+        <button class="quick-btn" onclick="addCommand('pacman -Syu')">📦 Update System</button>
+        <button class="quick-btn" onclick="addCommand('pacman -Ss')">🔍 Search Package</button>
+        <button class="quick-btn" onclick="addCommand('yt-dlp -F')">📋 yt-dlp Formats</button>
+        <button class="quick-btn" onclick="addCommand('df -h')">💾 Disk Usage</button>
+        <button class="quick-btn" onclick="addCommand('free -h')">🧠 Memory</button>
+        <button class="quick-btn" onclick="addCommand('ip a')">🌐 Network</button>
+        <button class="quick-btn" onclick="addCommand('ps aux')">📋 Processes</button>
+        <button class="quick-btn" onclick="addCommand('clear')">🗑️ Clear</button>
+        <button class="quick-btn danger" onclick="addCommand('exit')">🚪 Exit</button>
+    </div>
+
+    <!-- Command Input -->
+    <div class="command-line">
+        <span class="prompt">#</span>
+        <input type="text" id="command" placeholder="Type any Arch Linux command..." autocomplete="off" spellcheck="false">
+    </div>
+
+    <!-- System Info -->
+    <div class="system-info">
+        <div class="info-item">
+            <span class="info-label">Hostname</span>
+            <span class="info-value" id="hostname">-</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Kernel</span>
+            <span class="info-value" id="kernel">-</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Uptime</span>
+            <span class="info-value" id="uptime">-</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Packages</span>
+            <span class="info-value" id="packages">-</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Shell</span>
+            <span class="info-value" id="shell">bash</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Terminal</span>
+            <span class="info-value" id="terminal-type">xterm</span>
         </div>
     </div>
 
     <script>
-        // Terminal Elements
+        // DOM Elements
         const terminal = document.getElementById('terminal');
         const commandInput = document.getElementById('command');
         let ws = null;
-        let currentDir = '/root';
+        let commandHistory = [];
+        let historyIndex = 0;
 
-        // Stats Elements
-        const cpuPercent = document.getElementById('cpu-percent');
-        const cpuProgress = document.getElementById('cpu-progress');
-        const cpuModel = document.getElementById('cpu-model');
-        const cpuCores = document.getElementById('cpu-cores');
-        
-        const ramPercent = document.getElementById('ram-percent');
-        const ramProgress = document.getElementById('ram-progress');
-        const ramUsed = document.getElementById('ram-used');
-        const ramTotal = document.getElementById('ram-total');
-        
-        const diskPercent = document.getElementById('disk-percent');
-        const diskProgress = document.getElementById('disk-progress');
-        const diskUsed = document.getElementById('disk-used');
-        const diskTotal = document.getElementById('disk-total');
-        
-        const netDown = document.getElementById('net-down');
-        const netUp = document.getElementById('net-up');
-        const ipAddress = document.getElementById('ip-address');
-        const wifiSsid = document.getElementById('wifi-ssid');
-        
-        const uptimeEl = document.getElementById('uptime');
-        const processesEl = document.getElementById('processes');
-        const tempEl = document.getElementById('temp');
-        const loadavgEl = document.getElementById('loadavg');
-
-        // WebSocket Connection
+        // Connect WebSocket
         function connect() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}`);
 
             ws.onopen = () => {
-                log('✅ Connected to Arch Linux Pro\n');
-                log('📊 Real-time system monitoring active\n');
-                log('📁 Working directory: /root\n');
-                log('# ');
+                document.getElementById('connection-status').style.color = '#00ff9d';
+                document.getElementById('status-text').textContent = 'Connected';
             };
 
             ws.onmessage = (e) => {
@@ -527,148 +276,107 @@
                     } else {
                         terminal.innerHTML += escapeHtml(data.data);
                     }
-                } else if (data.type === 'stats') {
-                    updateStats(data.stats);
+                } else if (data.type === 'error') {
+                    terminal.innerHTML += `<span style="color: #ff5555;">❌ ${escapeHtml(data.data)}</span>`;
                 }
                 terminal.scrollTop = terminal.scrollHeight;
             };
 
             ws.onclose = () => {
-                log('❌ Disconnected. Reconnecting...\n');
+                document.getElementById('connection-status').style.color = '#ff5555';
+                document.getElementById('status-text').textContent = 'Disconnected';
                 setTimeout(connect, 3000);
             };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
         }
 
-        // Update Stats
-        function updateStats(stats) {
-            // CPU
-            cpuPercent.textContent = `${stats.cpu}%`;
-            cpuProgress.style.width = `${stats.cpu}%`;
-            cpuModel.textContent = stats.cpuModel || 'Unknown';
-            cpuCores.textContent = stats.cpuCores || '0';
-            
-            // RAM
-            ramPercent.textContent = `${stats.ram}%`;
-            ramProgress.style.width = `${stats.ram}%`;
-            ramUsed.textContent = stats.ramUsed || '0 GB';
-            ramTotal.textContent = stats.ramTotal || '0 GB';
-            
-            // Disk
-            diskPercent.textContent = `${stats.disk}%`;
-            diskProgress.style.width = `${stats.disk}%`;
-            diskUsed.textContent = stats.diskUsed || '0 GB';
-            diskTotal.textContent = stats.diskTotal || '0 GB';
-            
-            // Network
-            netDown.textContent = stats.netDown || '0 KB/s';
-            netUp.textContent = stats.netUp || '0 KB/s';
-            ipAddress.textContent = stats.ip || '0.0.0.0';
-            wifiSsid.textContent = stats.wifi || 'Not Connected';
-            
-            // System
-            uptimeEl.textContent = stats.uptime || '0h';
-            processesEl.textContent = stats.processes || '0';
-            tempEl.textContent = stats.temp || '0°C';
-            loadavgEl.textContent = stats.loadavg || '0.0';
-        }
-
-        // Helper Functions
+        // Escape HTML
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
-        function log(msg) {
-            terminal.innerHTML += msg;
-            terminal.scrollTop = terminal.scrollHeight;
-        }
-
+        // Add command to input
         function addCommand(cmd) {
             commandInput.value = cmd;
             commandInput.focus();
         }
 
-        function handleCd(command) {
-            if (command.startsWith('cd ')) {
-                const dir = command.substring(3).trim();
-                if (dir === '..') {
-                    currentDir = currentDir.split('/').slice(0, -1).join('/') || '/';
-                } else if (dir.startsWith('/')) {
-                    currentDir = dir;
-                } else if (currentDir === '/') {
-                    currentDir = '/' + dir;
-                } else {
-                    currentDir = currentDir + '/' + dir;
-                }
-                currentDir = currentDir.replace(/\/+/g, '/');
-                if (currentDir === '') currentDir = '/';
-                return true;
+        // Send command
+        function sendCommand() {
+            const cmd = commandInput.value.trim();
+            if (!cmd) return;
+
+            // Add to history
+            commandHistory.push(cmd);
+            historyIndex = commandHistory.length;
+
+            // Display command
+            terminal.innerHTML += `<span style="color: #00ff9d;">[root@arch]# ${escapeHtml(cmd)}</span>\n`;
+
+            // Handle special commands
+            if (cmd === 'clear') {
+                terminal.innerHTML = '';
+            } else if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'command', command: cmd }));
+            } else {
+                terminal.innerHTML += `<span style="color: #ff5555;">❌ Not connected\n</span>`;
+                terminal.innerHTML += `<span style="color: #ff5555;"># </span>`;
             }
-            return false;
+
+            commandInput.value = '';
         }
 
-        // Command Input
+        // Event listeners
         commandInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && commandInput.value.trim()) {
-                const cmd = commandInput.value.trim();
-                
-                // Display command
-                terminal.innerHTML += `<span style="color: #00ff9d;">[root@arch]# ${escapeHtml(cmd)}</span>\n`;
-                
-                // Handle local commands
-                if (handleCd(cmd)) {
-                    log('# ');
-                } else if (cmd === 'pwd') {
-                    log(`${currentDir}\n# `);
-                } else if (cmd === 'clear') {
-                    terminal.innerHTML = '';
-                    log('# ');
-                } else if (cmd === 'help') {
-                    log('📚 Available Commands:\n');
-                    log('  neofetch    - System information\n');
-                    log('  htop        - Process viewer\n');
-                    log('  pacman -S   - Install packages (auto yes)\n');
-                    log('  yt-dlp      - Download videos\n');
-                    log('  df -h       - Disk usage\n');
-                    log('  free -h     - Memory usage\n');
-                    log('  ip a        - Network info\n');
-                    log('  cd          - Change directory\n');
-                    log('  pwd         - Print directory\n');
-                    log('  clear       - Clear terminal\n');
-                    log('# ');
-                } else if (cmd === 'neofetch') {
-                    // Simulate neofetch output
-                    log('           .-::-.           root@arch\n');
-                    log('        .:+syyyyy+:`        OS: Arch Linux\n');
-                    log('    `:+sssssssssssso/.      Host: Render Cloud\n');
-                    log('  -+sssssssssssssssssso-    Kernel: 6.6.x-arch1\n');
-                    log('.+sssssssssssssssssssso+.   Uptime: ' + uptimeEl.textContent + '\n');
-                    log('/sssssssssssssssssssssss/   Packages: ' + processesEl.textContent + '\n');
-                    log('/sssssssssssssssssssssss/   Shell: bash 5.2\n');
-                    log('.+sssssssssssssssssssso+.   CPU: ' + cpuModel.textContent + '\n');
-                    log('  -+sssssssssssssssssso-    GPU: Virtual\n');
-                    log('    `:+sssssssssssso/.      Memory: ' + ramUsed.textContent + '/' + ramTotal.textContent + '\n');
-                    log('        .:+syyyyy+:`        Disk: ' + diskUsed.textContent + '/' + diskTotal.textContent + '\n');
-                    log('           .-::-.\n');
-                    log('# ');
-                } else if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'command', command: cmd }));
-                } else {
-                    log('❌ Not connected\n# ');
+            if (e.key === 'Enter') sendCommand();
+        });
+
+        commandInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    commandInput.value = commandHistory[historyIndex];
                 }
-                
-                commandInput.value = '';
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    commandInput.value = commandHistory[historyIndex];
+                } else {
+                    historyIndex = commandHistory.length;
+                    commandInput.value = '';
+                }
             }
         });
+
+        // Update system info
+        async function updateSystemInfo() {
+            try {
+                const res = await fetch('/api/exec', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: 'uname -n; uname -r; cat /proc/uptime; pacman -Q | wc -l' })
+                });
+                const data = await res.json();
+                const parts = data.output.split('\n');
+                document.getElementById('hostname').textContent = parts[0] || '-';
+                document.getElementById('kernel').textContent = parts[1] || '-';
+                const uptime = parseFloat(parts[2]) || 0;
+                const hours = Math.floor(uptime / 3600);
+                document.getElementById('uptime').textContent = `${hours}h`;
+                document.getElementById('packages').textContent = parts[3] || '-';
+            } catch (err) {
+                console.error('Failed to update system info:', err);
+            }
+        }
 
         // Initialize
         connect();
         commandInput.focus();
+        updateSystemInfo();
+        setInterval(updateSystemInfo, 10000);
     </script>
 </body>
 </html>
