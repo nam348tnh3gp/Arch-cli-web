@@ -1,4 +1,4 @@
-# Dockerfile - Arch Terminal Controller
+# Dockerfile - Arch Terminal Pro
 FROM archlinux:latest
 
 # Cập nhật hệ thống
