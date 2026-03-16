@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arch Linux Full Terminal</title>
+    <title>Arch Linux Terminal</title>
     <style>
         * {
             margin: 0;
@@ -20,7 +20,7 @@
             flex-direction: column;
         }
 
-        /* Terminal Toolbar */
+        /* Toolbar */
         .toolbar {
             background: #1a1f2e;
             padding: 8px 20px;
@@ -28,7 +28,6 @@
             align-items: center;
             gap: 20px;
             border-bottom: 2px solid #00ff9d;
-            color: #00ff9d;
         }
 
         .toolbar-item {
@@ -36,10 +35,6 @@
             align-items: center;
             gap: 5px;
             font-size: 13px;
-        }
-
-        .toolbar-item i {
-            font-size: 16px;
         }
 
         .status-badge {
@@ -51,7 +46,56 @@
             font-weight: bold;
         }
 
-        /* Main Terminal */
+        /* Stats Bar */
+        .stats-bar {
+            background: #1a1f2e;
+            padding: 10px 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            border-bottom: 1px solid #2a3a4a;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            color: #4a5b6e;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            color: #00ff9d;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .stat-unit {
+            color: #4a5b6e;
+            font-size: 10px;
+            margin-left: 2px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #2a3a4a;
+            border-radius: 2px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #00ff9d;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        /* Terminal */
         #terminal {
             flex: 1;
             background: #0a0f1e;
@@ -89,10 +133,6 @@
             outline: none;
         }
 
-        #command::placeholder {
-            color: #4a5b6e;
-        }
-
         /* Quick Commands */
         .quick-commands {
             padding: 10px 20px;
@@ -111,52 +151,11 @@
             border-radius: 16px;
             font-size: 12px;
             cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 4px;
         }
 
         .quick-btn:hover {
             background: #00ff9d;
             color: #0a0f1e;
-        }
-
-        .quick-btn.danger {
-            border-color: #ff5555;
-            color: #ff5555;
-        }
-
-        .quick-btn.danger:hover {
-            background: #ff5555;
-            color: #0a0f1e;
-        }
-
-        /* System Info */
-        .system-info {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            padding: 15px 20px;
-            background: #1a1f2e;
-            border-top: 1px solid #2a3a4a;
-            font-size: 12px;
-        }
-
-        .info-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .info-label {
-            color: #4a5b6e;
-            font-size: 10px;
-            text-transform: uppercase;
-        }
-
-        .info-value {
-            color: #00ff9d;
-            font-weight: bold;
         }
 
         /* Scrollbar */
@@ -176,25 +175,57 @@
     <!-- Toolbar -->
     <div class="toolbar">
         <div class="toolbar-item">
-            <i>🐧</i>
-            <span>Arch Linux</span>
-            <span class="status-badge">FULL</span>
-        </div>
-        <div class="toolbar-item">
-            <i>📦</i>
-            <span id="package-count">-</span>
-        </div>
-        <div class="toolbar-item">
-            <i>⚡</i>
-            <span id="cpu-usage">-</span>
-        </div>
-        <div class="toolbar-item">
-            <i>🧠</i>
-            <span id="memory-usage">-</span>
+            <span>🐧 Arch Linux</span>
+            <span class="status-badge" id="connection-status">●</span>
         </div>
         <div class="toolbar-item" style="margin-left: auto;">
-            <i id="connection-status">●</i>
-            <span id="status-text">Connected</span>
+            <span id="hostname">-</span>
+        </div>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat">
+            <span class="stat-label">CPU</span>
+            <div>
+                <span class="stat-value" id="cpu-value">0</span>
+                <span class="stat-unit">%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="cpu-progress" style="width: 0%"></div>
+            </div>
+        </div>
+        <div class="stat">
+            <span class="stat-label">RAM</span>
+            <div>
+                <span class="stat-value" id="ram-value">0</span>
+                <span class="stat-unit">%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="ram-progress" style="width: 0%"></div>
+            </div>
+        </div>
+        <div class="stat">
+            <span class="stat-label">DISK</span>
+            <div>
+                <span class="stat-value" id="disk-value">0</span>
+                <span class="stat-unit">%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="disk-progress" style="width: 0%"></div>
+            </div>
+        </div>
+        <div class="stat">
+            <span class="stat-label">UPTIME</span>
+            <span class="stat-value" id="uptime-value">0h</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">PACKAGES</span>
+            <span class="stat-value" id="packages-value">0</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">LOAD</span>
+            <span class="stat-value" id="load-value">0.0</span>
         </div>
     </div>
 
@@ -205,49 +236,16 @@
     <div class="quick-commands">
         <button class="quick-btn" onclick="addCommand('neofetch')">🖥️ System Info</button>
         <button class="quick-btn" onclick="addCommand('htop')">📊 HTOP</button>
-        <button class="quick-btn" onclick="addCommand('pacman -Syu')">📦 Update System</button>
-        <button class="quick-btn" onclick="addCommand('pacman -Ss')">🔍 Search Package</button>
-        <button class="quick-btn" onclick="addCommand('yt-dlp -F')">📋 yt-dlp Formats</button>
-        <button class="quick-btn" onclick="addCommand('df -h')">💾 Disk Usage</button>
+        <button class="quick-btn" onclick="addCommand('pacman -Syu')">📦 Update</button>
+        <button class="quick-btn" onclick="addCommand('df -h')">💾 Disk</button>
         <button class="quick-btn" onclick="addCommand('free -h')">🧠 Memory</button>
-        <button class="quick-btn" onclick="addCommand('ip a')">🌐 Network</button>
-        <button class="quick-btn" onclick="addCommand('ps aux')">📋 Processes</button>
         <button class="quick-btn" onclick="addCommand('clear')">🗑️ Clear</button>
-        <button class="quick-btn danger" onclick="addCommand('exit')">🚪 Exit</button>
     </div>
 
     <!-- Command Input -->
     <div class="command-line">
         <span class="prompt">#</span>
-        <input type="text" id="command" placeholder="Type any Arch Linux command..." autocomplete="off" spellcheck="false">
-    </div>
-
-    <!-- System Info -->
-    <div class="system-info">
-        <div class="info-item">
-            <span class="info-label">Hostname</span>
-            <span class="info-value" id="hostname">-</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Kernel</span>
-            <span class="info-value" id="kernel">-</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Uptime</span>
-            <span class="info-value" id="uptime">-</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Packages</span>
-            <span class="info-value" id="packages">-</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Shell</span>
-            <span class="info-value" id="shell">bash</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Terminal</span>
-            <span class="info-value" id="terminal-type">xterm</span>
-        </div>
+        <input type="text" id="command" placeholder="Type command..." autocomplete="off">
     </div>
 
     <script>
@@ -258,14 +256,26 @@
         let commandHistory = [];
         let historyIndex = 0;
 
+        // Stats Elements
+        const cpuValue = document.getElementById('cpu-value');
+        const cpuProgress = document.getElementById('cpu-progress');
+        const ramValue = document.getElementById('ram-value');
+        const ramProgress = document.getElementById('ram-progress');
+        const diskValue = document.getElementById('disk-value');
+        const diskProgress = document.getElementById('disk-progress');
+        const uptimeValue = document.getElementById('uptime-value');
+        const packagesValue = document.getElementById('packages-value');
+        const loadValue = document.getElementById('load-value');
+        const hostnameEl = document.getElementById('hostname');
+
         // Connect WebSocket
         function connect() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}`);
 
             ws.onopen = () => {
-                document.getElementById('connection-status').style.color = '#00ff9d';
-                document.getElementById('status-text').textContent = 'Connected';
+                document.getElementById('connection-status').style.background = '#00ff9d';
+                log('✅ Connected\n# ');
             };
 
             ws.onmessage = (e) => {
@@ -276,52 +286,77 @@
                     } else {
                         terminal.innerHTML += escapeHtml(data.data);
                     }
-                } else if (data.type === 'error') {
-                    terminal.innerHTML += `<span style="color: #ff5555;">❌ ${escapeHtml(data.data)}</span>`;
+                } else if (data.type === 'stats') {
+                    // Update stats từ WebSocket
+                    cpuValue.textContent = data.cpu;
+                    cpuProgress.style.width = data.cpu + '%';
+                    ramValue.textContent = data.ram;
+                    ramProgress.style.width = data.ram + '%';
+                    
+                    const hours = Math.floor(data.uptime / 3600);
+                    uptimeValue.textContent = hours + 'h';
                 }
                 terminal.scrollTop = terminal.scrollHeight;
             };
 
             ws.onclose = () => {
-                document.getElementById('connection-status').style.color = '#ff5555';
-                document.getElementById('status-text').textContent = 'Disconnected';
+                document.getElementById('connection-status').style.background = '#ff5555';
                 setTimeout(connect, 3000);
             };
         }
 
-        // Escape HTML
+        // Fetch stats từ REST API
+        async function fetchStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                
+                cpuValue.textContent = data.cpu;
+                cpuProgress.style.width = data.cpu + '%';
+                
+                ramValue.textContent = data.ram;
+                ramProgress.style.width = data.ram + '%';
+                
+                diskValue.textContent = data.disk;
+                diskProgress.style.width = data.disk + '%';
+                
+                uptimeValue.textContent = data.uptime;
+                packagesValue.textContent = data.packages;
+                loadValue.textContent = data.loadavg;
+                hostnameEl.textContent = data.hostname;
+            } catch (err) {
+                console.error('Stats error:', err);
+            }
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
-        // Add command to input
+        function log(msg) {
+            terminal.innerHTML += msg;
+        }
+
         function addCommand(cmd) {
             commandInput.value = cmd;
             commandInput.focus();
         }
 
-        // Send command
         function sendCommand() {
             const cmd = commandInput.value.trim();
             if (!cmd) return;
 
-            // Add to history
             commandHistory.push(cmd);
             historyIndex = commandHistory.length;
 
-            // Display command
-            terminal.innerHTML += `<span style="color: #00ff9d;">[root@arch]# ${escapeHtml(cmd)}</span>\n`;
+            terminal.innerHTML += `<span style="color: #00ff9d;"># ${escapeHtml(cmd)}</span>\n`;
 
-            // Handle special commands
             if (cmd === 'clear') {
                 terminal.innerHTML = '';
             } else if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'command', command: cmd }));
-            } else {
-                terminal.innerHTML += `<span style="color: #ff5555;">❌ Not connected\n</span>`;
-                terminal.innerHTML += `<span style="color: #ff5555;"># </span>`;
             }
 
             commandInput.value = '';
@@ -351,32 +386,13 @@
             }
         });
 
-        // Update system info
-        async function updateSystemInfo() {
-            try {
-                const res = await fetch('/api/exec', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ command: 'uname -n; uname -r; cat /proc/uptime; pacman -Q | wc -l' })
-                });
-                const data = await res.json();
-                const parts = data.output.split('\n');
-                document.getElementById('hostname').textContent = parts[0] || '-';
-                document.getElementById('kernel').textContent = parts[1] || '-';
-                const uptime = parseFloat(parts[2]) || 0;
-                const hours = Math.floor(uptime / 3600);
-                document.getElementById('uptime').textContent = `${hours}h`;
-                document.getElementById('packages').textContent = parts[3] || '-';
-            } catch (err) {
-                console.error('Failed to update system info:', err);
-            }
-        }
-
         // Initialize
         connect();
         commandInput.focus();
-        updateSystemInfo();
-        setInterval(updateSystemInfo, 10000);
+        
+        // Fetch stats mỗi 2 giây
+        fetchStats();
+        setInterval(fetchStats, 2000);
     </script>
 </body>
 </html>
