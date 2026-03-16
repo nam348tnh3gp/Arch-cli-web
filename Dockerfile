@@ -1,12 +1,10 @@
-# Dockerfile - Arch Linux Full Terminal
+# Dockerfile - Arch Linux Terminal (Fixed)
 FROM archlinux:latest
 
-# Cập nhật hệ thống và cài đặt packages cần thiết
+# Cập nhật hệ thống và cài đặt packages cơ bản (chỉ những gói chắc chắn có)
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm \
     # Core tools
-    base \
-    base-devel \
     sudo \
     git \
     curl \
@@ -18,24 +16,17 @@ RUN pacman -Syu --noconfirm && \
     # Network tools
     net-tools \
     iputils \
-    bind-tools \
+    bind \
     traceroute \
-    iperf3 \
     # System tools
     lsof \
     strace \
-    ltrace \
-    gdb \
-    valgrind \
     # Programming languages
     nodejs \
     npm \
     python \
     python-pip \
-    ruby \
-    perl \
     gcc \
-    g++ \
     make \
     cmake \
     # Media tools
@@ -46,21 +37,23 @@ RUN pacman -Syu --noconfirm && \
     zip \
     tar \
     gzip \
-    p7zip \
-    # Database clients
+    # Database clients (chỉ libs, không cần client đầy đủ)
     postgresql-libs \
-    mariadb-clients \
-    redis \
     # Shell utilities
     zsh \
-    fish \
     tmux \
     screen \
     # Process management
     supervisor \
     && pacman -Scc --noconfirm
 
-# Cấu hình sudo không cần password cho root (tránh lỗi)
+# Cài thêm các gói bổ sung bằng pip (cho Python)
+RUN pip install --break-system-packages \
+    youtube-dl \
+    requests \
+    beautifulsoup4
+
+# Cấu hình sudo không cần password
 RUN echo "root ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Tạo thư mục làm việc
@@ -74,46 +67,38 @@ RUN npm install
 COPY server.js ./
 COPY public/ ./public/
 
-# Tạo thư mục downloads và shared
-RUN mkdir -p /downloads /shared /home/archuser && \
+# Tạo thư mục downloads
+RUN mkdir -p /downloads /shared && \
     chmod 777 /downloads /shared
 
-# Tạo script init system
+# Script init
 RUN echo '#!/bin/bash' > /init.sh && \
     echo 'echo "=========================================="' >> /init.sh && \
-    echo 'echo "  Arch Linux Full Terminal Starting..."   "' >> /init.sh && \
+    echo 'echo "  Arch Linux Terminal Starting..."' >> /init.sh && \
     echo 'echo "=========================================="' >> /init.sh && \
     echo '' >> /init.sh && \
     echo '# Fix pacman keyring' >> /init.sh && \
-    echo 'echo "🔑 Initializing pacman keyring..."' >> /init.sh && \
     echo 'pacman-key --init' >> /init.sh && \
     echo 'pacman-key --populate archlinux' >> /init.sh && \
     echo '' >> /init.sh && \
     echo '# Update package database' >> /init.sh && \
-    echo 'echo "📦 Updating package database..."' >> /init.sh && \
     echo 'pacman -Sy --noconfirm' >> /init.sh && \
     echo '' >> /init.sh && \
     echo '# Show system info' >> /init.sh && \
-    echo 'echo "System Information:"' >> /init.sh && \
-    echo 'echo "  OS: Arch Linux"' >> /init.sh && \
-    echo 'echo "  Kernel: $(uname -r)"' >> /init.sh && \
-    echo 'echo "  Architecture: $(uname -m)"' >> /init.sh && \
-    echo 'echo "  CPU: $(nproc) cores"' >> /init.sh && \
-    echo 'echo "  Memory: $(free -h | grep Mem | awk "{print \$2}")"' >> /init.sh && \
-    echo 'echo "  Disk: $(df -h / | awk "NR==2 {print \$2}")"' >> /init.sh && \
+    echo 'echo "System: Arch Linux"' >> /init.sh && \
+    echo 'echo "Kernel: $(uname -r)"' >> /init.sh && \
+    echo 'echo "Node: $(node --version)"' >> /init.sh && \
+    echo 'echo "npm: $(npm --version)"' >> /init.sh && \
+    echo 'echo "Python: $(python --version)"' >> /init.sh && \
     echo '' >> /init.sh && \
     echo '# Start Node.js server' >> /init.sh && \
-    echo 'echo "🚀 Starting Node.js server..."' >> /init.sh && \
     echo 'cd /app' >> /init.sh && \
     echo 'exec node server.js' >> /init.sh && \
     chmod +x /init.sh
 
-# Expose port
 EXPOSE 3000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
-# Start
 CMD ["/init.sh"]
